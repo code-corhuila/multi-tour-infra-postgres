@@ -1,0 +1,47 @@
+# The single PostgreSQL instance of one environment (Annex J, J.3.1, J.7). Select the environment
+# with its variables file, which also names the project and so the container and the volume:
+#   docker compose --env-file env/dev.env up -d --wait postgres      (or scripts/up.sh dev)
+# The service is called postgres because every -db migration runner waits for that exact name.
+services:
+  postgres:
+    # Exact version: a moving tag would change the database under the team without a commit.
+    image: postgres:18.6-alpine
+    restart: unless-stopped
+    # No ports on purpose: only services on the platform network reach the database. A developer
+    # opens psql with `docker compose exec` (see the README).
+    environment:
+      POSTGRES_DB: ${PG_DATABASE:?PG_DATABASE is required, set it in env/<environment>.env}
+      POSTGRES_USER: ${PG_ADMIN_USER:?PG_ADMIN_USER is required, set it in env/<environment>.env}
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD:?PG_ADMIN_PASSWORD is required, set it in env/<environment>.env}
+      # One password per schema user, read by postgres/init/01-instance.sh
+      COMMERCIAL_RESERVATION_APP_PASSWORD: ${COMMERCIAL_RESERVATION_APP_PASSWORD:?COMMERCIAL_RESERVATION_APP_PASSWORD is required, set it in env/<environment>.env}
+      OPERATIONS_COST_APP_PASSWORD: ${OPERATIONS_COST_APP_PASSWORD:?OPERATIONS_COST_APP_PASSWORD is required, set it in env/<environment>.env}
+      CASH_REPORTING_APP_PASSWORD: ${CASH_REPORTING_APP_PASSWORD:?CASH_REPORTING_APP_PASSWORD is required, set it in env/<environment>.env}
+      SECURITY_APP_PASSWORD: ${SECURITY_APP_PASSWORD:?SECURITY_APP_PASSWORD is required, set it in env/<environment>.env}
+      WORKFLOW_ONBOARD_TENANT_APP_PASSWORD: ${WORKFLOW_ONBOARD_TENANT_APP_PASSWORD:?WORKFLOW_ONBOARD_TENANT_APP_PASSWORD is required, set it in env/<environment>.env}
+      WORKFLOW_REGISTER_PAYMENT_APP_PASSWORD: ${WORKFLOW_REGISTER_PAYMENT_APP_PASSWORD:?WORKFLOW_REGISTER_PAYMENT_APP_PASSWORD is required, set it in env/<environment>.env}
+      WORKFLOW_EXECUTE_REFUND_APP_PASSWORD: ${WORKFLOW_EXECUTE_REFUND_APP_PASSWORD:?WORKFLOW_EXECUTE_REFUND_APP_PASSWORD is required, set it in env/<environment>.env}
+      WORKFLOW_CANCEL_DEPARTURE_APP_PASSWORD: ${WORKFLOW_CANCEL_DEPARTURE_APP_PASSWORD:?WORKFLOW_CANCEL_DEPARTURE_APP_PASSWORD is required, set it in env/<environment>.env}
+      WORKFLOW_CHANGE_DEPARTURE_VEHICLES_APP_PASSWORD: ${WORKFLOW_CHANGE_DEPARTURE_VEHICLES_APP_PASSWORD:?WORKFLOW_CHANGE_DEPARTURE_VEHICLES_APP_PASSWORD is required, set it in env/<environment>.env}
+    volumes:
+      # The image 18 keeps its data in a versioned folder under /var/lib/postgresql, so the volume
+      # goes there; mounted on .../data, the data would land in an anonymous volume instead.
+      - postgres-data:/var/lib/postgresql
+      # The image runs these scripts only when the volume is empty (Annex J, J.5.2)
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # -h 127.0.0.1: the temporary server of the first start listens on the socket only, so the
+      # check stays red until the init scripts have finished.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks: [platform]
+
+volumes:
+  postgres-data:
+
+networks:
+  platform:
+    external: true
