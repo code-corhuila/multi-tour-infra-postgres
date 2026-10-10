@@ -125,6 +125,42 @@ V_init_runs_twice_without_error() {
   cmp -s "$TMP/before.txt" "$TMP/after.txt" || { echo "the second run changed roles or settings"; return 1; }
 }
 
+
+# ---- the root composition (spec 001-hu-inf-001, RN-INF-01 to RN-INF-04): it is only resolved, never started
+# -f platform.yml and the same throwaway project: what Docker would run is what is read
+dcp() { docker compose -p "$PROJECT" -f platform.yml --env-file "$ENVF_ARG" "$@"; }
+
+# The repositories the composition includes sit beside this one; the CI has only this one, so it gets the rest
+siblings() {
+  for repo in multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db; do
+    [ -d "../$repo" ] || git clone -q --depth 1 -b develop "https://github.com/code-corhuila/$repo.git" "../$repo" || { echo "could not get $repo"; return 1; }
+  done
+}
+
+I_root_composition_publishes_no_port_of_the_api() {
+  siblings || return 1
+  out=$(dcp config 2>&1) || { echo "the root composition does not resolve:"; printf '%s\n' "$out" | tail -n 3; return 1; }
+  printf '%s\n' "$out" | grep -Eq '^[[:space:]]+ports:' && { echo "a service of the root composition publishes ports (norm 5.6.1)"; return 1; }
+  printf '%s\n' "$out" | awk '/^  identity-audit-api:/ {f=1; next} /^  [a-z]/ {f=0} f && /8082/ {ok=1} END {exit !ok}' || { echo "identity-audit-api does not expose 8082"; return 1; }
+}
+
+I_missing_sibling_fails_with_its_name() {
+  out=$(SIBLINGS_DIR="$TMP/none" ENV_FILE="$ENVF" sh scripts/up.sh dev --check 2>&1) && { echo "up.sh accepted an empty folder of siblings"; return 1; }
+  printf '%s\n' "$out" | grep -q 'multi-tour-identity-audit-api' || { echo "the message does not name the missing repository"; return 1; }
+}
+
+I_runner_waits_for_the_healthy_instance_and_is_not_started_by_up() {
+  siblings || return 1
+  dcp config --services 2>/dev/null | grep -q 'identity-audit-db-migrate' && { echo "the runner starts with up (it needs the profile tooling)"; return 1; }
+  out=$(dcp --profile tooling config 2>&1) || { echo "the composition with the profile tooling does not resolve"; return 1; }
+  printf '%s\n' "$out" | awk '/^  identity-audit-db-migrate:/ {f=1; next} /^  [a-z]/ {f=0} f && /condition: service_healthy/ {ok=1} END {exit !ok}' || { echo "the runner does not wait for service_healthy"; return 1; }
+}
+
+I_up_script_starts_the_included_services() {
+  siblings || return 1
+  out=$(ENV_FILE="$ENVF" sh scripts/up.sh dev --check 2>&1) || { echo "up.sh --check failed:"; printf '%s\n' "$out" | tail -n 3; return 1; }
+}
+
 # ---- setup: a clean throwaway project, then one instance
 build_env
 dc down -v --remove-orphans >/dev/null 2>&1 || true
@@ -139,6 +175,10 @@ run "V·init_runs_only_on_empty_volume" V_init_runs_only_on_empty_volume
 run "V·no_real_env_file_versioned" V_no_real_env_file_versioned
 run "V·every_schema_has_its_app_user" V_every_schema_has_its_app_user
 run "V·init_runs_twice_without_error" V_init_runs_twice_without_error
+run "I·root_composition_publishes_no_port_of_the_api" I_root_composition_publishes_no_port_of_the_api
+run "I·missing_sibling_fails_with_its_name" I_missing_sibling_fails_with_its_name
+run "I·runner_waits_for_the_healthy_instance_and_is_not_started_by_up" I_runner_waits_for_the_healthy_instance_and_is_not_started_by_up
+run "I·up_script_starts_the_included_services" I_up_script_starts_the_included_services
 
 echo "finished in $(( $(date +%s) - started )) s"
 [ "$fail" = 0 ] && echo "ALL CHECKS PASSED" || echo "SOME CHECKS FAILED"
