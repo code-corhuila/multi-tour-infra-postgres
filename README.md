@@ -18,9 +18,12 @@ Needs Docker with Compose v2. Pick the environment: `dev`, `qa` or `main`.
 
 ```sh
 cp env/dev.env.example env/dev.env   # never versioned; fill every secret
-sh scripts/up.sh dev                 # creates the network platform and waits until healthy
+sh scripts/up.sh dev                 # the whole platform (platform.yml): creates the network platform and waits until healthy
+sh scripts/up.sh dev --check         # only checks that the sibling repositories are there and the composition resolves
 sh scripts/down.sh dev               # stops it and keeps the data
 ```
+
+The repositories that `platform.yml` includes (`multi-tour-infra-mongo`, `multi-tour-identity-audit-api` and `-db`) must be cloned as siblings of this one, in the same folder; `up.sh` names the one that is missing and the command to clone it, and `down.sh` needs them too. `MONGODB_URI` repeats the password of `IDENTITY_AUDIT_APP_PASSWORD`: keep both equal, and write a password with reserved characters percent-encoded in the address.
 
 Each environment has its own `COMPOSE_PROJECT_NAME` (`multi-tour-dev`, `-qa`, `-main`), so each
 one gets its own container and volume.
