@@ -1,0 +1,12 @@
+# The root composition of the platform (Annex J, J.7; norm 5.9): the repositories that have something to run,
+# each included by its own compose file. They must sit beside this one; scripts/up.sh says which is missing.
+# compose.yml stays the PostgreSQL instance alone, so it can still start without the rest.
+#   docker compose -f platform.yml --env-file env/dev.env up -d --wait     (or scripts/up.sh dev)
+# A repository joins this list with the story that gives it a deploy/compose.yml (spec 001-hu-inf-001).
+# No service here publishes a port: the gateway will be the only one (norm 5.6.1).
+include:
+  - path: compose.yml
+  - path: ../multi-tour-infra-mongo/compose.yml
+  - path: ../multi-tour-identity-audit-api/deploy/compose.yml
+  # the runner of the db: profile tooling, so `up` does not start it
+  - path: ../multi-tour-identity-audit-db/deploy/compose.yml
