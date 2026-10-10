@@ -47,6 +47,7 @@ build_env() {
       \#*) printf '%s\n' "$line" ;;
       COMPOSE_PROJECT_NAME=*) printf 'COMPOSE_PROJECT_NAME=%s\n' "$PROJECT" ;;
       PG_ADMIN_PASSWORD=*) printf 'PG_ADMIN_PASSWORD="%s"\n' "$(password admin)" ;;
+      MONGO_INITDB_ROOT_PASSWORD=*) printf 'MONGO_INITDB_ROOT_PASSWORD="%s"\n' "$(password mongo-admin)" ;;
       *_APP_PASSWORD=*)
         name=${line%%=*}
         schema=$(printf '%s' "${name%_APP_PASSWORD}" | tr 'A-Z' 'a-z')
@@ -141,7 +142,7 @@ I_root_composition_publishes_no_port_of_the_api() {
   siblings || return 1
   out=$(dcp config 2>&1) || { echo "the root composition does not resolve:"; printf '%s\n' "$out" | tail -n 3; return 1; }
   printf '%s\n' "$out" | grep -Eq '^[[:space:]]+ports:' && { echo "a service of the root composition publishes ports (norm 5.6.1)"; return 1; }
-  printf '%s\n' "$out" | awk '/^  identity-audit-api:/ {f=1; next} /^  [a-z]/ {f=0} f && /8082/ {ok=1} END {exit !ok}' || { echo "identity-audit-api does not expose 8082"; return 1; }
+  printf '%s\n' "$out" | awk '/^  identity-audit-api:/ {f=1; next} /^  [a-z]/ {f=0} f && /^    expose:/ {e=1; next} f && e && /8082/ {ok=1} f && /^    [a-z_]+:/ && !/^    expose:/ {e=0} END {exit !ok}' || { echo "identity-audit-api does not expose 8082"; return 1; }
 }
 
 I_missing_sibling_fails_with_its_name() {
@@ -156,7 +157,7 @@ I_runner_waits_for_the_healthy_instance_and_is_not_started_by_up() {
   printf '%s\n' "$out" | awk '/^  identity-audit-db-migrate:/ {f=1; next} /^  [a-z]/ {f=0} f && /condition: service_healthy/ {ok=1} END {exit !ok}' || { echo "the runner does not wait for service_healthy"; return 1; }
 }
 
-I_up_script_starts_the_included_services() {
+I_up_script_checks_the_siblings_and_resolves_the_composition() {
   siblings || return 1
   out=$(ENV_FILE="$ENVF" sh scripts/up.sh dev --check 2>&1) || { echo "up.sh --check failed:"; printf '%s\n' "$out" | tail -n 3; return 1; }
 }
@@ -178,7 +179,7 @@ run "V·init_runs_twice_without_error" V_init_runs_twice_without_error
 run "I·root_composition_publishes_no_port_of_the_api" I_root_composition_publishes_no_port_of_the_api
 run "I·missing_sibling_fails_with_its_name" I_missing_sibling_fails_with_its_name
 run "I·runner_waits_for_the_healthy_instance_and_is_not_started_by_up" I_runner_waits_for_the_healthy_instance_and_is_not_started_by_up
-run "I·up_script_starts_the_included_services" I_up_script_starts_the_included_services
+run "I·up_script_checks_the_siblings_and_resolves_the_composition" I_up_script_checks_the_siblings_and_resolves_the_composition
 
 echo "finished in $(( $(date +%s) - started )) s"
 [ "$fail" = 0 ] && echo "ALL CHECKS PASSED" || echo "SOME CHECKS FAILED"

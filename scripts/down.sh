@@ -1,5 +1,5 @@
 #!/bin/sh
-# Stops the PostgreSQL instance of one environment and keeps its volume.
+# Stops the platform of one environment (everything platform.yml includes) and keeps its volumes.
 # Usage: scripts/down.sh dev|qa|main
 set -eu
 cd "$(dirname "$0")/.."
@@ -28,4 +28,4 @@ if [ ! -f "$env_file" ]; then
   exit 1
 fi
 
-docker compose --env-file "$env_file" down
+docker compose -f platform.yml --env-file "$env_file" down
