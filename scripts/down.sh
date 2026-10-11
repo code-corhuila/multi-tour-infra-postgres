@@ -28,4 +28,6 @@ if [ ! -f "$env_file" ]; then
   exit 1
 fi
 
+case "$env_file" in /*) COMPOSE_ENV_FILE="$env_file" ;; *) COMPOSE_ENV_FILE="$(pwd)/$env_file" ;; esac
+export COMPOSE_ENV_FILE
 docker compose -f platform.yml --env-file "$env_file" down

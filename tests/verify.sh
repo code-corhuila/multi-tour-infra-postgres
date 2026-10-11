@@ -22,6 +22,8 @@ ENVF="$TMP/ci.env"
 # the native docker client needs a Windows path for the file; elsewhere cygpath does not exist
 ENVF_ARG="$ENVF"
 command -v cygpath >/dev/null 2>&1 && ENVF_ARG=$(cygpath -m "$ENVF")
+# every include of platform.yml reads this file (its env_file is COMPOSE_ENV_FILE)
+export COMPOSE_ENV_FILE="$ENVF_ARG"
 BASE=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
 fail=0
 
@@ -142,8 +144,9 @@ V_init_runs_twice_without_error() {
 dcp() { docker compose -p "$PROJECT" -f platform.yml --env-file "$ENVF_ARG" "$@"; }
 
 # The repositories the composition includes sit beside this one; the CI has only this one, so it gets the rest
+SIBLING_REPOS="multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db multi-tour-security multi-tour-workflow-onboard-tenant multi-tour-worker-event-relay multi-tour-api-gateway multi-tour-front"
 siblings() {
-  for repo in multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db; do
+  for repo in $SIBLING_REPOS; do
     [ -d "../$repo" ] || git clone -q --depth 1 -b develop "https://github.com/code-corhuila/$repo.git" "../$repo" || { echo "could not get $repo"; return 1; }
   done
 }
@@ -151,7 +154,9 @@ siblings() {
 I_root_composition_publishes_no_port_of_the_api() {
   siblings || return 1
   out=$(dcp config 2>&1) || { echo "the root composition does not resolve:"; printf '%s\n' "$out" | tail -n 3; return 1; }
-  printf '%s\n' "$out" | grep -Eq '^[[:space:]]+ports:' && { echo "a service of the root composition publishes ports (norm 5.6.1)"; return 1; }
+  # the gateway is the only service with ports (norm 5.6.1)
+  printf '%s\n' "$out" | awk '/^  [a-z0-9-]+:/ {svc=$1} /^    ports:/ {print svc}' | grep -vx 'api-gateway:' | grep -q . && { echo "a service other than api-gateway publishes ports (norm 5.6.1)"; return 1; }
+  printf '%s\n' "$out" | awk '/^  api-gateway:/ {f=1; next} /^  [a-z]/ {f=0} f && /^    ports:/ {ok=1} END {exit !ok}' || { echo "api-gateway does not publish its port"; return 1; }
   printf '%s\n' "$out" | awk '/^  identity-audit-api:/ {f=1; next} /^  [a-z]/ {f=0} f && /^    expose:/ {e=1; next} f && e && /8082/ {ok=1} f && /^    [a-z_]+:/ && !/^    expose:/ {e=0} END {exit !ok}' || { echo "identity-audit-api does not expose 8082"; return 1; }
 }
 
@@ -170,6 +175,31 @@ I_runner_waits_for_the_healthy_instance_and_is_not_started_by_up() {
 I_up_script_checks_the_siblings_and_resolves_the_composition() {
   siblings || return 1
   out=$(ENV_FILE="$ENVF" sh scripts/up.sh dev --check 2>&1) || { echo "up.sh --check failed:"; printf '%s\n' "$out" | tail -n 3; return 1; }
+}
+
+I_root_composition_has_every_service_of_the_demo() {
+  siblings || return 1
+  services=$(dcp --profile tooling config --services 2>&1) || { echo "the composition with the profile tooling does not resolve"; return 1; }
+  for svc in postgres mongo security security-db-migrate identity-audit-api identity-audit-db-migrate workflow-onboard-tenant workflow-onboard-tenant-db-migrate worker-event-relay front api-gateway; do
+    printf '%s\n' "$services" | grep -qx "$svc" || { echo "the root composition lacks the service $svc"; return 1; }
+  done
+}
+
+# The gateway routes by container name (its routes/*.conf): the services must answer to those names on the platform network
+I_services_answer_to_the_names_the_gateway_routes_to() {
+  siblings || return 1
+  out=$(dcp config 2>&1) || { echo "the root composition does not resolve"; return 1; }
+  for alias in multi-tour-security multi-tour-identity-audit-api multi-tour-workflow-onboard-tenant; do
+    printf '%s\n' "$out" | grep -Eq "^[[:space:]]+- $alias\$" || { echo "no service has the network alias $alias"; return 1; }
+  done
+  printf '%s\n' "$out" | grep -Eq 'LISTEN_ADDR: "?:8090"?' || { echo "the saga does not listen on 8090, where the gateway sends it"; return 1; }
+}
+
+I_demo_front_port_is_a_separate_opt_in_file() {
+  siblings || return 1
+  [ -f demo-front-port.yml ] || { echo "demo-front-port.yml is missing"; return 1; }
+  out=$(docker compose -p "$PROJECT" -f platform.yml -f demo-front-port.yml --env-file "$ENVF_ARG" config 2>&1) || { echo "platform.yml with demo-front-port.yml does not resolve"; return 1; }
+  printf '%s\n' "$out" | awk '/^  front:/ {f=1; next} /^  [a-z]/ {f=0} f && /^    ports:/ {ok=1} END {exit !ok}' || { echo "the front does not publish its port with the opt-in file"; return 1; }
 }
 
 # ---- setup: a clean throwaway project, then one instance
@@ -191,6 +221,9 @@ run "I·root_composition_publishes_no_port_of_the_api" I_root_composition_publis
 run "I·missing_sibling_fails_with_its_name" I_missing_sibling_fails_with_its_name
 run "I·runner_waits_for_the_healthy_instance_and_is_not_started_by_up" I_runner_waits_for_the_healthy_instance_and_is_not_started_by_up
 run "I·up_script_checks_the_siblings_and_resolves_the_composition" I_up_script_checks_the_siblings_and_resolves_the_composition
+run "I:root_composition_has_every_service_of_the_demo" I_root_composition_has_every_service_of_the_demo
+run "I:services_answer_to_the_names_the_gateway_routes_to" I_services_answer_to_the_names_the_gateway_routes_to
+run "I:demo_front_port_is_a_separate_opt_in_file" I_demo_front_port_is_a_separate_opt_in_file
 
 echo "finished in $(( $(date +%s) - started )) s"
 [ "$fail" = 0 ] && echo "ALL CHECKS PASSED" || echo "SOME CHECKS FAILED"

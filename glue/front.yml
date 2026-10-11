@@ -1,0 +1,14 @@
+# The front has a Dockerfile but no compose file of its own. The portal module must be in
+# ../multi-tour-front/portals/ before the image is built (scripts/build-portal.sh does it).
+services:
+  front:
+    build:
+      context: ../../multi-tour-front
+    image: multi-tour-front:0.1.0
+    expose: ["8080"]
+    restart: unless-stopped
+    networks: [platform]
+
+networks:
+  platform:
+    external: true
