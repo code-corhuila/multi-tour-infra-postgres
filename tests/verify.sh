@@ -22,6 +22,8 @@ ENVF="$TMP/ci.env"
 # the native docker client needs a Windows path for the file; elsewhere cygpath does not exist
 ENVF_ARG="$ENVF"
 command -v cygpath >/dev/null 2>&1 && ENVF_ARG=$(cygpath -m "$ENVF")
+# every include of platform.yml reads this file (its env_file is COMPOSE_ENV_FILE)
+export COMPOSE_ENV_FILE="$ENVF_ARG"
 BASE=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
 fail=0
 
@@ -190,7 +192,7 @@ I_services_answer_to_the_names_the_gateway_routes_to() {
   for alias in multi-tour-security multi-tour-identity-audit-api multi-tour-workflow-onboard-tenant; do
     printf '%s\n' "$out" | grep -Eq "^[[:space:]]+- $alias\$" || { echo "no service has the network alias $alias"; return 1; }
   done
-  printf '%s\n' "$out" | grep -Eq 'LISTEN_ADDR: :8090' || { echo "the saga does not listen on 8090, where the gateway sends it"; return 1; }
+  printf '%s\n' "$out" | grep -Eq 'LISTEN_ADDR: "?:8090"?' || { echo "the saga does not listen on 8090, where the gateway sends it"; return 1; }
 }
 
 I_demo_front_port_is_a_separate_opt_in_file() {

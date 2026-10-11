@@ -1,23 +1,33 @@
 # The root composition of the platform (Annex J, J.7; norm 5.9): the repositories that have something to run,
 # each included by its own compose file. They must sit beside this one; scripts/up.sh says which is missing.
 # compose.yml stays the PostgreSQL instance alone, so it can still start without the rest.
-#   docker compose -f platform.yml --env-file env/dev.env up -d --wait     (or scripts/up.sh dev)
+#   scripts/up.sh dev      (it sets COMPOSE_ENV_FILE to the variables file of the environment)
 # The gateway is the only service that publishes a port (norm 5.6.1). The runners have profile tooling, so
 # `up` does not start them; scripts/up.sh runs them after the instances and before the services.
-# A path with two files is a service of the repository plus a small override in glue/.
+# Every include reads the same variables file (env_file): an included project does not see the --env-file of the
+# command by itself. A path with two files is a service of the repository plus a small override in glue/.
 include:
   - path: compose.yml
+    env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
   - path: ../multi-tour-infra-mongo/compose.yml
+    env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
   - path:
       - ../multi-tour-identity-audit-api/deploy/compose.yml
       - glue/identity-audit-api.yml
+    env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
   - path: ../multi-tour-identity-audit-db/deploy/compose.yml
+    env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
   - path:
       - ../multi-tour-security/deploy/compose.yml
       - glue/security.yml
+    env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
   - path:
       - ../multi-tour-workflow-onboard-tenant/deploy/compose.yml
       - glue/workflow-onboard-tenant.yml
+    env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
   - path: ../multi-tour-worker-event-relay/deploy/compose.yml
+    env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
   - path: glue/front.yml
+    env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
   - path: ../multi-tour-api-gateway/deploy/compose.yml
+    env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}

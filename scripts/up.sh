@@ -43,6 +43,10 @@ for repo in multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-iden
 done
 [ "$missing" = 0 ] || exit 1
 
+# Every include of platform.yml reads this file (an included project does not see --env-file by itself)
+case "$env_file" in /*) COMPOSE_ENV_FILE="$env_file" ;; *) COMPOSE_ENV_FILE="$(pwd)/$env_file" ;; esac
+export COMPOSE_ENV_FILE
+
 # shellcheck disable=SC2086 # $files is a fixed list of two options
 dc() { docker compose $files --env-file "$env_file" "$@"; }
 
@@ -56,6 +60,9 @@ if grep -q 'CHANGE_ME' "$env_file"; then
   echo "ERROR: $env_file still has CHANGE_ME. Fill it (scripts/dev-keys.sh and scripts/dev-token.sh help in develop)." >&2
   exit 1
 fi
+
+# Without the portal module the image builds and the area answers "not available" in the browser
+[ -f "$siblings/multi-tour-front/portals/identity-audit-portal.js" ] || echo "WARNING: $siblings/multi-tour-front/portals/identity-audit-portal.js is missing; run scripts/build-portal.sh first" >&2
 
 # The other repositories join this network by name, so it cannot belong to this compose file (D-05)
 docker network inspect platform >/dev/null 2>&1 || docker network create platform >/dev/null
