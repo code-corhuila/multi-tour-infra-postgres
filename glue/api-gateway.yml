@@ -1,0 +1,5 @@
+# The gateway declares the platform network with a name, the other repositories without one, and Compose refuses two
+# different definitions of the same network. The name was the network's own, so dropping it changes nothing.
+networks:
+  platform: !override
+    external: true

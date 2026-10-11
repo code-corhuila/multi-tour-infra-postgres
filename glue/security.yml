@@ -1,0 +1,6 @@
+# The gateway routes to this container by the name multi-tour-security (its routes/security.conf)
+services:
+  security:
+    networks:
+      platform:
+        aliases: [multi-tour-security]
