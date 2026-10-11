@@ -153,6 +153,7 @@ siblings() {
 
 I_root_composition_publishes_no_port_of_the_api() {
   siblings || return 1
+  { docker compose version; echo "file=$COMPOSE_ENV_FILE"; ls -l "$COMPOSE_ENV_FILE"; grep -c '^ALLOWED_ORIGIN=' "$ENVF"; } >&2
   out=$(dcp config 2>&1) || { echo "the root composition does not resolve:"; printf '%s\n' "$out" | tail -n 3; return 1; }
   # the gateway is the only service with ports (norm 5.6.1)
   printf '%s\n' "$out" | awk '/^  [a-z0-9-]+:/ {svc=$1} /^    ports:/ {print svc}' | grep -vx 'api-gateway:' | grep -q . && { echo "a service other than api-gateway publishes ports (norm 5.6.1)"; return 1; }
