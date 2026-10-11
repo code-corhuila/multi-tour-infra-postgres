@@ -23,3 +23,6 @@ jobs:
       # verify.sh generates its own throwaway passwords, so no env/dev.env is written here
       - name: Instance, users and secrets checks
         run: sh tests/verify.sh
+
+      - name: Development scripts checks
+        run: sh tests/scripts.sh
