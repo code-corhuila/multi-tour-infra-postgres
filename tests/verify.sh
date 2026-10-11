@@ -114,6 +114,16 @@ V_every_schema_has_its_app_user() {
   return 0
 }
 
+# The services check the issuer and the audience only when they are set: an empty example would leave any issuer and any audience accepted
+# as long as the signature is valid, so the example names what the security microservice signs with (plan HU-SEC-001, D-02)
+V_examples_name_the_issuer_and_audience_of_the_security_microservice() {
+  for environment in dev qa main; do
+    example="env/$environment.env.example"
+    grep -Eq '^JWT_ISSUER=multi-tour-security[[:space:]]*$' "$example" || { echo "$example does not say JWT_ISSUER=multi-tour-security"; return 1; }
+    grep -Eq '^JWT_AUDIENCE=multi-tour[[:space:]]*$' "$example" || { echo "$example does not say JWT_AUDIENCE=multi-tour"; return 1; }
+  done
+}
+
 snapshot() { # roles with their password hashes, so a reset password shows as a difference
   psql_admin -c "SELECT rolname, rolsuper, rolcanlogin, rolcreatedb, rolcreaterole, rolpassword FROM pg_authid ORDER BY 1" \
              -c "SELECT r.rolname, s.setconfig FROM pg_db_role_setting s LEFT JOIN pg_roles r ON r.oid = s.setrole ORDER BY 1"
@@ -174,6 +184,7 @@ dc up -d --wait --wait-timeout 120 postgres >"$TMP/up.log" 2>&1 && STARTED=1
 run "V·one_postgres_container_per_environment" V_one_postgres_container_per_environment
 run "V·init_runs_only_on_empty_volume" V_init_runs_only_on_empty_volume
 run "V·no_real_env_file_versioned" V_no_real_env_file_versioned
+run "V·examples_name_the_issuer_and_audience_of_the_security_microservice" V_examples_name_the_issuer_and_audience_of_the_security_microservice
 run "V·every_schema_has_its_app_user" V_every_schema_has_its_app_user
 run "V·init_runs_twice_without_error" V_init_runs_twice_without_error
 run "I·root_composition_publishes_no_port_of_the_api" I_root_composition_publishes_no_port_of_the_api
