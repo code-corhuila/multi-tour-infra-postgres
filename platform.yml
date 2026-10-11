@@ -29,5 +29,7 @@ include:
     env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
   - path: glue/front.yml
     env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
-  - path: ../multi-tour-api-gateway/deploy/compose.yml
+  - path:
+      - ../multi-tour-api-gateway/deploy/compose.yml
+      - glue/api-gateway.yml
     env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
