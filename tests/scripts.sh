@@ -61,6 +61,12 @@ bootstrap_refuses_when_the_stack_is_not_up() {
   echo "$out" | grep -qi 'not running'
 }
 
+bootstrap_refuses_qa_and_main_files() {
+  mkdir -p "$TMP/e" && cp "$TMP/ok.env" "$TMP/e/qa.env"
+  out=$(echo 's3cret-Pass' | BOOT_ENV="$TMP/e/qa.env" boot admin@example.com 2>&1) && return 1
+  echo "$out" | grep -qi 'development only'
+}
+
 bootstrap_passes_the_password_only_through_stdin() {
   out=$(echo 's3cret-Pass' | boot admin@example.com 2>&1) || return 1
   [ "$(head -n 1 "$TMP/stdin.txt")" = "s3cret-Pass" ] || return 1
@@ -80,6 +86,7 @@ check "portal_script_refuses_a_missing_folder" portal_script_refuses_a_missing_f
 check "bootstrap_refuses_without_an_email" bootstrap_refuses_without_an_email
 check "bootstrap_refuses_while_the_env_has_change_me" bootstrap_refuses_while_the_env_has_change_me
 check "bootstrap_refuses_when_the_stack_is_not_up" bootstrap_refuses_when_the_stack_is_not_up
+check "bootstrap_refuses_qa_and_main_files" bootstrap_refuses_qa_and_main_files
 check "bootstrap_passes_the_password_only_through_stdin" bootstrap_passes_the_password_only_through_stdin
 [ "$fail" = 0 ] && echo "ALL CHECKS PASSED" || echo "SOME CHECKS FAILED"
 exit "$fail"
