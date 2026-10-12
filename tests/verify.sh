@@ -189,10 +189,11 @@ I_root_composition_has_every_service_of_the_demo() {
 I_services_answer_to_the_names_the_gateway_routes_to() {
   siblings || return 1
   out=$(dcp config 2>&1) || { echo "the root composition does not resolve"; return 1; }
-  for alias in multi-tour-security multi-tour-identity-audit-api multi-tour-workflow-onboard-tenant; do
+  for alias in multi-tour-security multi-tour-identity-audit-api multi-tour-workflow-onboard-tenant multi-tour-front; do
     printf '%s\n' "$out" | grep -Eq "^[[:space:]]+- $alias\$" || { echo "no service has the network alias $alias"; return 1; }
   done
   printf '%s\n' "$out" | grep -Eq 'LISTEN_ADDR: "?:8090"?' || { echo "the saga does not listen on 8090, where the gateway sends it"; return 1; }
+  printf '%s\n' "$out" | grep -Eq 'http://127\.0\.0\.1:8090/health' || { echo "the saga health check does not ask port 8090, where it listens"; return 1; }
 }
 
 I_demo_front_port_is_a_separate_opt_in_file() {
