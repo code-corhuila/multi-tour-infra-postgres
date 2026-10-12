@@ -200,7 +200,8 @@ I_demo_front_port_is_a_separate_opt_in_file() {
   siblings || return 1
   [ -f demo-front-port.yml ] || { echo "demo-front-port.yml is missing"; return 1; }
   out=$(docker compose -p "$PROJECT" -f platform.yml -f demo-front-port.yml --env-file "$ENVF_ARG" config 2>&1) || { echo "platform.yml with demo-front-port.yml does not resolve"; return 1; }
-  printf '%s\n' "$out" | awk '/^  front:/ {f=1; next} /^  [a-z]/ {f=0} f && /^    ports:/ {ok=1} END {exit !ok}' || { echo "the front does not publish its port with the opt-in file"; return 1; }
+  printf '%s\n' "$out" | awk '/^  api-gateway:/ {f=1; next} /^  [a-z]/ {f=0} f && /published: "?4200"?/ {ok=1} END {exit !ok}' || { echo "the gateway does not answer on port 4200 with the opt-in file"; return 1; }
+  ! printf '%s\n' "$out" | awk '/^  front:/ {f=1; next} /^  [a-z]/ {f=0} f && /^    ports:/ {bad=1} END {exit !bad}' || { echo "the front publishes a port: only the gateway may (a browser on 4200 would reach the front without the API)"; return 1; }
 }
 
 # ---- setup: a clean throwaway project, then one instance

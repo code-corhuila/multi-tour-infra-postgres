@@ -1,6 +1,7 @@
 # Demo only, opt in with: docker compose -f platform.yml -f demo-front-port.yml ... (scripts/up.sh dev --demo).
-# The browser must reach the front somewhere; the norm lets only the gateway publish a port (5.6.1), so this is
-# kept out of platform.yml. The origin matches ALLOWED_ORIGIN of the gateway.
+# People open the demo on 4200 out of habit. The front alone has no API (any call answers 405), so 4200 must lead
+# to the gateway, which serves the shell and the API on one origin. The norm lets only the gateway publish a
+# port (5.6.1): the front never does. Port 8080 stays published by platform.yml.
 services:
-  front:
+  api-gateway:
     ports: ["4200:8080"]
