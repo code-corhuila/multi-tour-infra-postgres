@@ -1,9 +1,15 @@
 # The gateway sends the saga to multi-tour-workflow-onboard-tenant:8090 (its routes/sagas.conf), while the service
-# defaults to 8080: the address is set here so the demo needs no change in either repository.
+# defaults to 8080 (and so does the health check of its image): the address and the check are set here so the demo needs no change in either repository.
 services:
   workflow-onboard-tenant:
     environment:
       LISTEN_ADDR: ":8090"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8090/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     expose:
       - "8090"
     networks:
