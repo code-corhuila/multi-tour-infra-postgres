@@ -47,9 +47,9 @@ sh scripts/bootstrap-admin.sh admin@example.com   # or PLATFORM_ADMIN_EMAIL in e
 
 Run it with the stack up. The password goes to the security service through standard input only (never an argument or a variable) and is never printed; with an administrator already there it does nothing, so repeating it is harmless. Then, in the browser:
 
-1. Open `http://localhost:4200/platform` and sign in as the Platform Administrator.
+1. Open `http://localhost:8080/platform` (the gateway: it serves the front and the API on one origin; port 4200 is only the front and answers 405 to any API call) and sign in as the Platform Administrator.
 2. Register a tenant in the portal: it starts the onboarding saga and shows the identifier of the new tenant.
-3. Open `http://localhost:4200/t/<identifier>`: the public profile of the tenant.
+3. Open `http://localhost:8080/t/<identifier>`: the public profile of the tenant.
 4. Sign up as a customer of that tenant and sign in.
 5. Each role sees its own screen: the Platform Administrator the tenants list, the customer the customer area.
 
@@ -63,7 +63,7 @@ curl -i http://localhost:8080/api/v1/security/users
 docker compose -f platform.yml --env-file env/dev.env stop identity-audit-api
 curl -i -H 'Authorization: Bearer x' http://localhost:8080/api/v1/identity-audit/tenants   # 503 {"error":"SERVICE_UNAVAILABLE",...}
 curl -i http://localhost:8080/api/v1/security/users   # unchanged
-curl -i http://localhost:4200/                                # 200: the front shell still loads
+curl -i http://localhost:8080/                                # 200: the front shell still loads
 docker compose -f platform.yml --env-file env/dev.env start identity-audit-api
 ```
 
