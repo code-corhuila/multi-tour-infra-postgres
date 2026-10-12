@@ -27,7 +27,14 @@ keys_script_prints_the_variables_to_paste() {
 token_script_refuses_a_missing_name() { ! sh scripts/dev-token.sh; }
 
 portal_script_refuses_a_missing_folder() { ! PORTAL_DIR="$TMP/none" FRONT_DIR="$TMP/none" sh scripts/build-portal.sh; }
-
+portal_script_copies_the_module_and_its_styles() {
+  d="$TMP/portal-copy"
+  mkdir -p "$d/portal" "$d/front" "$d/bin"
+  printf '#!/bin/sh\nmkdir -p dist\necho js > dist/portal.js\necho css > dist/portal.css\n' > "$d/bin/npm"
+  chmod +x "$d/bin/npm"
+  PATH="$d/bin:$PATH" PORTAL_DIR="$d/portal" FRONT_DIR="$d/front" sh scripts/build-portal.sh >/dev/null &&
+    [ -f "$d/front/portals/identity-audit-portal.js" ] && [ -f "$d/front/portals/identity-audit-portal.css" ]
+}
 # A fake docker on the PATH: "ps" lists postgres when FAKE_UP=1; any other call records its arguments and its input
 mkdir -p "$TMP/bin"
 cat > "$TMP/bin/docker" <<'FAKE'
@@ -83,6 +90,7 @@ check "keys_are_made_once_and_are_a_rs256_pair" keys_are_made_once_and_are_a_rs2
 check "keys_script_prints_the_variables_to_paste" keys_script_prints_the_variables_to_paste
 check "token_script_refuses_a_missing_name" token_script_refuses_a_missing_name
 check "portal_script_refuses_a_missing_folder" portal_script_refuses_a_missing_folder
+check "portal_script_copies_the_module_and_its_styles" portal_script_copies_the_module_and_its_styles
 check "bootstrap_refuses_without_an_email" bootstrap_refuses_without_an_email
 check "bootstrap_refuses_while_the_env_has_change_me" bootstrap_refuses_while_the_env_has_change_me
 check "bootstrap_refuses_when_the_stack_is_not_up" bootstrap_refuses_when_the_stack_is_not_up
