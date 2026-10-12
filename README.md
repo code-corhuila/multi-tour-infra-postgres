@@ -39,7 +39,13 @@ sh scripts/dev-token.sh workflow-onboard-tenant   # paste it as WORKFLOW_ONBOARD
 sh scripts/up.sh dev --demo                # again, now with both tokens
 ```
 
-The first Platform Administrator is made once with the command of the security service (`bootstrap-platform-admin`, see its README). Then, in the browser:
+The first Platform Administrator is made once with the command of the security service (`bootstrap-platform-admin`, see its README), through a script:
+
+```sh
+sh scripts/bootstrap-admin.sh admin@example.com   # or PLATFORM_ADMIN_EMAIL in env/dev.env; asks the password without echo
+```
+
+Run it with the stack up. The password goes to the security service through standard input only (never an argument or a variable) and is never printed; with an administrator already there it does nothing, so repeating it is harmless. Then, in the browser:
 
 1. Open `http://localhost:4200/platform` and sign in as the Platform Administrator.
 2. Register a tenant in the portal: it starts the onboarding saga and shows the identifier of the new tenant.
@@ -53,10 +59,10 @@ The gateway resolves names on every request and answers `503` for a service that
 
 ```sh
 # any route of security or of the saga answers with the service's own status (401 without a token), never 503
-curl -i http://localhost:8080/api/v1/security/accounts
+curl -i http://localhost:8080/api/v1/security/users
 docker compose -f platform.yml --env-file env/dev.env stop identity-audit-api
 curl -i -H 'Authorization: Bearer x' http://localhost:8080/api/v1/identity-audit/tenants   # 503 {"error":"SERVICE_UNAVAILABLE",...}
-curl -i http://localhost:8080/api/v1/security/accounts   # unchanged
+curl -i http://localhost:8080/api/v1/security/users   # unchanged
 curl -i http://localhost:4200/                                # 200: the front shell still loads
 docker compose -f platform.yml --env-file env/dev.env start identity-audit-api
 ```
