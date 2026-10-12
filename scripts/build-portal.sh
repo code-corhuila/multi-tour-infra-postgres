@@ -18,4 +18,5 @@ done
 (cd "$portal" && npm ci && npm run build)
 mkdir -p "$front/portals"
 cp "$portal/dist/portal.js" "$front/portals/identity-audit-portal.js"
-echo "Copied to $front/portals/identity-audit-portal.js"
+cp "$portal/dist/portal.css" "$front/portals/identity-audit-portal.css"
+echo "Copied to $front/portals/identity-audit-portal.js and .css"
