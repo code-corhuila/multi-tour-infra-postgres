@@ -1,0 +1,6 @@
+# The gateway routes to this container by the name multi-tour-identity-audit-api (its routes/identity-audit.conf)
+services:
+  identity-audit-api:
+    networks:
+      platform:
+        aliases: [multi-tour-identity-audit-api]

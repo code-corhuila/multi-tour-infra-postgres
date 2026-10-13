@@ -1,0 +1,7 @@
+# Secrets and keys never enter this repository (constitution, Article XI).
+# Only the .example files of each environment are versioned.
+.env
+env/*.env
+!env/*.env.example
+keys/
+*.pem

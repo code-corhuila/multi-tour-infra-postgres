@@ -1,0 +1,28 @@
+name: ci
+
+# Runs tests/verify.sh: one throwaway PostgreSQL instance and the five checks of the spec.
+# Pull requests toward develop and qa only, to save the course's automation minutes. No schedule.
+on:
+  pull_request:
+    branches: [develop, qa]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # verify.sh generates its own throwaway passwords, so no env/dev.env is written here
+      - name: Instance, users and secrets checks
+        run: sh tests/verify.sh
+
+      - name: Development scripts checks
+        run: sh tests/scripts.sh
