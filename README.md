@@ -31,7 +31,6 @@ The repositories that `platform.yml` includes (`multi-tour-infra-mongo`, `multi-
 
 ```sh
 sh scripts/dev-keys.sh                     # RS256 pair in keys/ (ignored); paste the three lines it prints into env/dev.env
-sh scripts/build-portal.sh                 # builds the identity-audit portal into ../multi-tour-front/portals/
 # fill env/dev.env: every password, ALLOWED_ORIGIN=http://localhost:4200, MONGODB_URI with the same password
 sh scripts/up.sh dev --demo                # refuses to start while a CHANGE_ME is left
 sh scripts/dev-token.sh worker-event-relay # paste the line as SERVICE_TOKEN
@@ -67,7 +66,19 @@ curl -i http://localhost:8080/                                # 200: the front s
 docker compose -f platform.yml --env-file env/dev.env start identity-audit-api
 ```
 
-Expected: only the stopped service's route answers `503`; the other routes and the front shell answer as before; after `start`, the route answers again. The portal is not a container: it is a module served by the front, so "the portal down" is the file `portals/identity-audit-portal.js` missing, and then only that area says it is not available.
+Expected: only the stopped service's route answers `503`; the other routes and the front shell answer as before; after `start`, the route answers again. The portal is its own container (`multi-tour-identity-audit-portal`, from `../multi-tour-identity-audit-portal/deploy/`). The gateway maps `/portals/identity-audit-portal.js` and `.css` to it, so stopping it (`docker compose -f platform.yml --env-file env/dev.env stop multi-tour-identity-audit-portal`) takes only that area down: the module answers `503` and the front shows "service unavailable" in that area while the other areas keep working.
+
+### Rebuild after a portal, gateway or front change (dev)
+
+The portal image no longer travels inside the front image. A stack started before this change still serves the old bundle; to run the new one:
+
+```sh
+export COMPOSE_ENV_FILE="$(pwd)/env/dev.env"   # up.sh sets it; a manual compose needs it
+docker compose -f platform.yml --env-file env/dev.env build multi-tour-identity-audit-portal api-gateway front
+docker compose -f platform.yml --env-file env/dev.env up -d --force-recreate multi-tour-identity-audit-portal api-gateway front
+```
+
+Then hard-reload the browser (Ctrl+F5): the module is served with `Cache-Control: no-store`, but a tab opened before still holds the old one. `COMPOSE_PROJECT_NAME` comes from `env/<env>.env` (`multi-tour-dev`, `-qa`, `-main`), so the same commands with `qa` or `main` act on that environment only; never add `-v` there.
 
 Each environment has its own `COMPOSE_PROJECT_NAME` (`multi-tour-dev`, `-qa`, `-main`), so each
 one gets its own container and volume.
