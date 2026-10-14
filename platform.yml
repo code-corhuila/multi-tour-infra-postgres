@@ -31,7 +31,9 @@ include:
     env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
   # Each portal is its own container behind the gateway (Annex H): stopping one takes only its area down.
   # The portal of operations-cost joins this list when its repository has deploy/compose.yml.
-  - path: ../multi-tour-commercial-reservation-portal/deploy/compose.yml
+  - path:
+      - ../multi-tour-commercial-reservation-portal/deploy/compose.yml
+      - glue/commercial-reservation-portal.yml
     env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
   - path: ../multi-tour-identity-audit-portal/deploy/compose.yml
     env_file: ${COMPOSE_ENV_FILE:?COMPOSE_ENV_FILE is required, scripts/up.sh sets it}
