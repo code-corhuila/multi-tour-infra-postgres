@@ -1,0 +1,6 @@
+# The portal repository declares the network with a name; the rest of the platform declares it plainly, and
+# Compose rejects two different declarations of the same network. The plain one wins here (same network).
+networks:
+  platform:
+    !override
+    external: true
