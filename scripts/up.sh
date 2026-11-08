@@ -35,7 +35,7 @@ fi
 # A repository that platform.yml includes and that is not beside this one stops the start, with its name
 siblings="${SIBLINGS_DIR:-..}"
 missing=0
-for repo in multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db multi-tour-security multi-tour-workflow-onboard-tenant multi-tour-worker-event-relay multi-tour-api-gateway multi-tour-front multi-tour-identity-audit-portal multi-tour-commercial-reservation-portal multi-tour-operations-cost-portal multi-tour-cash-reporting-portal; do
+for repo in multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db multi-tour-cash-reporting-api multi-tour-cash-reporting-db multi-tour-security multi-tour-workflow-onboard-tenant multi-tour-worker-event-relay multi-tour-api-gateway multi-tour-front multi-tour-identity-audit-portal multi-tour-commercial-reservation-portal multi-tour-operations-cost-portal multi-tour-cash-reporting-portal; do
   if [ ! -d "$siblings/$repo" ]; then
     echo "ERROR: $repo is missing in $siblings. Clone it: git clone https://github.com/code-corhuila/$repo.git $siblings/$repo" >&2
     missing=1
@@ -71,4 +71,5 @@ dc up -d --wait postgres mongo
 dc --profile tooling run --rm security-db-migrate
 dc --profile tooling run --rm workflow-onboard-tenant-db-migrate
 dc --profile tooling run --rm identity-audit-db-migrate
+dc --profile tooling run --rm cash-reporting-db-migrate
 dc up -d --wait
