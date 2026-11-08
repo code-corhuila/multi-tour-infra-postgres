@@ -1,0 +1,10 @@
+# The gateway routes to this container by the name multi-tour-operations-cost-api (its routes/operations-cost.conf).
+# The address of the single instance is the platform's to give: the service connects as operations_cost_app.
+services:
+  operations-cost-api:
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${PG_DATABASE}
+      DATABASE_PASSWORD: ${OPERATIONS_COST_APP_PASSWORD}
+    networks:
+      platform:
+        aliases: [multi-tour-operations-cost-api]
