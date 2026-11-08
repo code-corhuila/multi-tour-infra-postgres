@@ -1,0 +1,6 @@
+# The gateway routes to this container by the name multi-tour-cash-reporting-api (its routes/cash-reporting.conf)
+services:
+  cash-reporting-api:
+    networks:
+      platform:
+        aliases: [multi-tour-cash-reporting-api]
