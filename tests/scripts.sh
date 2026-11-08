@@ -96,6 +96,7 @@ platform_composes_the_operations_cost_service_and_its_runner() {
     grep -q '../multi-tour-operations-cost-db/deploy/compose.yml' platform.yml &&
     grep -q 'multi-tour-operations-cost-api' glue/operations-cost-api.yml &&
     grep -q 'jdbc:postgresql://postgres:5432/${PG_DATABASE}' glue/operations-cost-api.yml &&
+    grep -q 'COMMERCIAL_RESERVATION_BASE_URL: http://multi-tour-commercial-reservation-api:8083' glue/operations-cost-api.yml &&
     grep -q 'multi-tour-operations-cost-api multi-tour-operations-cost-db' scripts/up.sh &&
     grep -q 'run --rm operations-cost-db-migrate' scripts/up.sh
 }
