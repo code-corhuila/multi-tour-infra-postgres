@@ -101,6 +101,13 @@ platform_composes_the_operations_cost_service_and_its_runner() {
     grep -q 'run --rm operations-cost-db-migrate' scripts/up.sh
 }
 
+env_examples_give_the_relay_the_addresses_of_operations_cost_and_commercial_reservation() {
+  for f in env/dev.env.example env/qa.env.example env/main.env.example; do
+    grep -q '^OPERATIONS_COST_BASE_URL=http://multi-tour-operations-cost-api:8084$' "$f" &&
+      grep -q '^COMMERCIAL_RESERVATION_BASE_URL=http://multi-tour-commercial-reservation-api:8083$' "$f" || return 1
+  done
+}
+
 scripts_are_valid_shell() {
   for s in scripts/dev-keys.sh scripts/dev-token.sh scripts/build-portal.sh scripts/bootstrap-admin.sh; do sh -n "$s" || return 1; done
 }
@@ -108,6 +115,7 @@ scripts_are_valid_shell() {
 check "scripts_are_valid_shell" scripts_are_valid_shell
 check "platform_composes_the_cash_service_and_its_runner" platform_composes_the_cash_service_and_its_runner
 check "platform_composes_the_operations_cost_service_and_its_runner" platform_composes_the_operations_cost_service_and_its_runner
+check "env_examples_give_the_relay_the_addresses_of_operations_cost_and_commercial_reservation" env_examples_give_the_relay_the_addresses_of_operations_cost_and_commercial_reservation
 check "keys_are_made_once_and_are_a_rs256_pair" keys_are_made_once_and_are_a_rs256_pair
 check "keys_script_prints_the_variables_to_paste" keys_script_prints_the_variables_to_paste
 check "token_script_refuses_a_missing_name" token_script_refuses_a_missing_name
