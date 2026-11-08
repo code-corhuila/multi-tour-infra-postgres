@@ -81,11 +81,21 @@ bootstrap_passes_the_password_only_through_stdin() {
   ! grep -q 's3cret-Pass' "$TMP/args.txt" && ! echo "$out" | grep -q 's3cret-Pass'
 }
 
+platform_composes_the_cash_service_and_its_runner() {
+  grep -q '../multi-tour-cash-reporting-api/deploy/compose.yml' platform.yml &&
+    grep -q 'glue/cash-reporting-api.yml' platform.yml &&
+    grep -q '../multi-tour-cash-reporting-db/deploy/compose.yml' platform.yml &&
+    grep -q 'multi-tour-cash-reporting-api' glue/cash-reporting-api.yml &&
+    grep -q 'multi-tour-cash-reporting-api multi-tour-cash-reporting-db' scripts/up.sh &&
+    grep -q 'run --rm cash-reporting-db-migrate' scripts/up.sh
+}
+
 scripts_are_valid_shell() {
   for s in scripts/dev-keys.sh scripts/dev-token.sh scripts/build-portal.sh scripts/bootstrap-admin.sh; do sh -n "$s" || return 1; done
 }
 
 check "scripts_are_valid_shell" scripts_are_valid_shell
+check "platform_composes_the_cash_service_and_its_runner" platform_composes_the_cash_service_and_its_runner
 check "keys_are_made_once_and_are_a_rs256_pair" keys_are_made_once_and_are_a_rs256_pair
 check "keys_script_prints_the_variables_to_paste" keys_script_prints_the_variables_to_paste
 check "token_script_refuses_a_missing_name" token_script_refuses_a_missing_name
