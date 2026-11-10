@@ -23,7 +23,7 @@ sh scripts/up.sh dev --check         # only checks that the sibling repositories
 sh scripts/down.sh dev               # stops it and keeps the data
 ```
 
-The repositories that `platform.yml` includes (`multi-tour-infra-mongo`, `multi-tour-identity-audit-api` and `-db`, `multi-tour-cash-reporting-api` and `-db`, `multi-tour-security`, `multi-tour-workflow-onboard-tenant`, `multi-tour-worker-event-relay`, `multi-tour-api-gateway`, `multi-tour-front`) must be cloned as siblings of this one, in the same folder; `up.sh` names the one that is missing and the command to clone it, and `down.sh` needs them too. `MONGODB_URI` repeats the password of `IDENTITY_AUDIT_APP_PASSWORD`: keep both equal, and write a password with reserved characters percent-encoded in the address.
+The repositories that `platform.yml` includes (`multi-tour-infra-mongo`, `multi-tour-identity-audit-api` and `-db`, `multi-tour-cash-reporting-api` and `-db`, `multi-tour-security`, `multi-tour-workflow-onboard-tenant`, `multi-tour-workflow-change-departure-vehicles`, `multi-tour-worker-event-relay`, `multi-tour-api-gateway`, `multi-tour-front`) must be cloned as siblings of this one, in the same folder; `up.sh` names the one that is missing and the command to clone it, and `down.sh` needs them too. `MONGODB_URI` repeats the password of `IDENTITY_AUDIT_APP_PASSWORD`: keep both equal, and write a password with reserved characters percent-encoded in the address.
 
 `up.sh` starts in order: the instances (PostgreSQL, MongoDB), the migration runners (security, the saga, identity-audit, cash-reporting), then the services. Only the gateway publishes a port (8080). The browser must also reach the front: `up.sh dev --demo` adds `demo-front-port.yml`, which publishes it on 4200 and nothing else. Small files in `glue/` give two services the container name the gateway routes to and set the port of the saga (8090), and define the front, which has no compose file of its own. Run one environment at a time: the network `platform` and the host port 8080 are shared.
 
@@ -35,6 +35,7 @@ sh scripts/dev-keys.sh                     # RS256 pair in keys/ (ignored); past
 sh scripts/up.sh dev --demo                # refuses to start while a CHANGE_ME is left
 sh scripts/dev-token.sh worker-event-relay # paste the line as SERVICE_TOKEN
 sh scripts/dev-token.sh workflow-onboard-tenant   # paste it as WORKFLOW_ONBOARD_TENANT_SERVICE_TOKEN
+sh scripts/dev-token.sh workflow-change-departure-vehicles   # paste it as WORKFLOW_CHANGE_DEPARTURE_VEHICLES_SERVICE_TOKEN
 sh scripts/up.sh dev --demo                # again, now with both tokens
 ```
 
