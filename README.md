@@ -36,6 +36,7 @@ sh scripts/up.sh dev --demo                # refuses to start while a CHANGE_ME 
 sh scripts/dev-token.sh worker-event-relay # paste the line as SERVICE_TOKEN
 sh scripts/dev-token.sh workflow-onboard-tenant   # paste it as WORKFLOW_ONBOARD_TENANT_SERVICE_TOKEN
 sh scripts/dev-token.sh workflow-change-departure-vehicles   # paste it as WORKFLOW_CHANGE_DEPARTURE_VEHICLES_SERVICE_TOKEN
+sh scripts/dev-token.sh worker-notifications 90d   # paste it as WORKER_NOTIFICATIONS_SERVICE_TOKEN (customer e-mails, HU-COM-015)
 sh scripts/up.sh dev --demo                # again, now with both tokens
 ```
 
