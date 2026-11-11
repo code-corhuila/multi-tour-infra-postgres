@@ -114,12 +114,22 @@ env_examples_give_the_relay_the_address_of_cash_reporting() {
   done
 }
 
+platform_composes_the_reprogramming_timers_worker_with_its_own_token() {
+  grep -q '../multi-tour-worker-reprogramming-timers/deploy/compose.yml' platform.yml &&
+    grep -q 'multi-tour-worker-reprogramming-timers' scripts/up.sh &&
+    grep -q 'multi-tour-worker-reprogramming-timers' README.md &&
+    for f in env/dev.env.example env/qa.env.example env/main.env.example; do
+      grep -q '^WORKER_REPROGRAMMING_TIMERS_SERVICE_TOKEN=CHANGE_ME$' "$f" || return 1
+    done
+}
+
 scripts_are_valid_shell() {
   for s in scripts/dev-keys.sh scripts/dev-token.sh scripts/build-portal.sh scripts/bootstrap-admin.sh; do sh -n "$s" || return 1; done
 }
 
 check "env_examples_give_the_relay_the_address_of_cash_reporting" env_examples_give_the_relay_the_address_of_cash_reporting
 check "scripts_are_valid_shell" scripts_are_valid_shell
+check "platform_composes_the_reprogramming_timers_worker_with_its_own_token" platform_composes_the_reprogramming_timers_worker_with_its_own_token
 check "platform_composes_the_cash_service_and_its_runner" platform_composes_the_cash_service_and_its_runner
 check "platform_composes_the_operations_cost_service_and_its_runner" platform_composes_the_operations_cost_service_and_its_runner
 check "env_examples_give_the_relay_the_addresses_of_operations_cost_and_commercial_reservation" env_examples_give_the_relay_the_addresses_of_operations_cost_and_commercial_reservation

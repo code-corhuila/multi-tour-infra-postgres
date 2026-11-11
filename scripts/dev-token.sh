@@ -3,7 +3,7 @@
 # its own command. In qa and main the tokens are secrets of the environment.
 # Usage: scripts/dev-token.sh <name> [duration]     e.g. scripts/dev-token.sh worker-event-relay 24h
 # The name becomes the `sub` of the token. Paste the line into env/dev.env as SERVICE_TOKEN (the relay) or
-# WORKFLOW_ONBOARD_TENANT_SERVICE_TOKEN (the saga) or WORKER_DEPARTURE_DEADLINES_SERVICE_TOKEN (job 3) or WORKER_NOTIFICATIONS_SERVICE_TOKEN (job 4). Needs the keys (scripts/dev-keys.sh) and the images built.
+# WORKFLOW_ONBOARD_TENANT_SERVICE_TOKEN (the saga) or WORKER_DEPARTURE_DEADLINES_SERVICE_TOKEN (job 3) or WORKER_REPROGRAMMING_TIMERS_SERVICE_TOKEN (job 5) or WORKER_NOTIFICATIONS_SERVICE_TOKEN (job 4). Needs the keys (scripts/dev-keys.sh) and the images built.
 set -eu
 cd "$(dirname "$0")/.."
 
