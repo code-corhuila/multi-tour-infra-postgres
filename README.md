@@ -26,7 +26,7 @@ sh scripts/down.sh dev               # stops it and keeps the data
 The 21 repositories that `platform.yml` includes must be cloned as siblings of this one, in the same folder (the list is in `scripts/up.sh`):
 
 ```sh
-for r in multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db multi-tour-commercial-reservation-api multi-tour-commercial-reservation-db multi-tour-cash-reporting-api multi-tour-cash-reporting-db multi-tour-operations-cost-api multi-tour-operations-cost-db multi-tour-security multi-tour-workflow-onboard-tenant multi-tour-workflow-change-departure-vehicles multi-tour-worker-event-relay multi-tour-worker-departure-deadlines multi-tour-worker-notifications multi-tour-api-gateway multi-tour-front multi-tour-identity-audit-portal multi-tour-commercial-reservation-portal multi-tour-operations-cost-portal multi-tour-cash-reporting-portal; do
+for r in multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db multi-tour-commercial-reservation-api multi-tour-commercial-reservation-db multi-tour-cash-reporting-api multi-tour-cash-reporting-db multi-tour-operations-cost-api multi-tour-operations-cost-db multi-tour-security multi-tour-workflow-onboard-tenant multi-tour-workflow-change-departure-vehicles multi-tour-worker-event-relay multi-tour-worker-departure-deadlines multi-tour-worker-reprogramming-timers multi-tour-worker-notifications multi-tour-api-gateway multi-tour-front multi-tour-identity-audit-portal multi-tour-commercial-reservation-portal multi-tour-operations-cost-portal multi-tour-cash-reporting-portal; do
   git clone -b develop https://github.com/code-corhuila/$r.git ../$r
 done
 ```
@@ -57,6 +57,7 @@ sh scripts/dev-token.sh workflow-onboard-tenant   # paste it as WORKFLOW_ONBOARD
 sh scripts/dev-token.sh workflow-change-departure-vehicles   # paste it as WORKFLOW_CHANGE_DEPARTURE_VEHICLES_SERVICE_TOKEN
 sh scripts/dev-token.sh worker-notifications 90d   # paste it as WORKER_NOTIFICATIONS_SERVICE_TOKEN (customer e-mails, HU-COM-015)
 sh scripts/dev-token.sh worker-departure-deadlines   # paste it as WORKER_DEPARTURE_DEADLINES_SERVICE_TOKEN (job 3, which calls operations-cost)
+sh scripts/dev-token.sh worker-reprogramming-timers 90d   # paste it as WORKER_REPROGRAMMING_TIMERS_SERVICE_TOKEN (job 5, which calls commercial-reservation)
 sh scripts/up.sh dev --demo                # now with the five tokens; it refuses to start while a CHANGE_ME is left
 ```
 
