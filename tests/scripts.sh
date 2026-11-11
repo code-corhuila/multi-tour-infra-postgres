@@ -108,10 +108,17 @@ env_examples_give_the_relay_the_addresses_of_operations_cost_and_commercial_rese
   done
 }
 
+env_examples_give_the_relay_the_address_of_cash_reporting() {
+  for f in env/dev.env.example env/qa.env.example env/main.env.example; do
+    grep -q "^CASH_REPORTING_BASE_URL=http://multi-tour-cash-reporting-api:8085$" "$f" || return 1
+  done
+}
+
 scripts_are_valid_shell() {
   for s in scripts/dev-keys.sh scripts/dev-token.sh scripts/build-portal.sh scripts/bootstrap-admin.sh; do sh -n "$s" || return 1; done
 }
 
+check "env_examples_give_the_relay_the_address_of_cash_reporting" env_examples_give_the_relay_the_address_of_cash_reporting
 check "scripts_are_valid_shell" scripts_are_valid_shell
 check "platform_composes_the_cash_service_and_its_runner" platform_composes_the_cash_service_and_its_runner
 check "platform_composes_the_operations_cost_service_and_its_runner" platform_composes_the_operations_cost_service_and_its_runner
