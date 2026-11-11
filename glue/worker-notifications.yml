@@ -1,0 +1,8 @@
+# Job 4 reads the content of a customer notice (HU-COM-015) from the commercial api with its own SERVICE token. The root
+# composition reads one variables file for every service and SERVICE_TOKEN there is the token of the event relay, so this
+# worker has its own name (sub worker-notifications), as the job 3 worker has. COMMERCIAL_RESERVATION_BASE_URL is the one
+# the relay already uses. Both or neither: with neither, a ClientNotified event ends failed in job 7, visible.
+services:
+  worker-notifications:
+    environment:
+      SERVICE_TOKEN: ${WORKER_NOTIFICATIONS_SERVICE_TOKEN:-}
