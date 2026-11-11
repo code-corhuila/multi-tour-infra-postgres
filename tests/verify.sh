@@ -144,7 +144,7 @@ V_init_runs_twice_without_error() {
 dcp() { docker compose -p "$PROJECT" -f platform.yml --env-file "$ENVF_ARG" "$@"; }
 
 # The repositories the composition includes sit beside this one; the CI has only this one, so it gets the rest
-SIBLING_REPOS="multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db multi-tour-security multi-tour-workflow-onboard-tenant multi-tour-worker-event-relay multi-tour-api-gateway multi-tour-front"
+SIBLING_REPOS="multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db multi-tour-security multi-tour-workflow-onboard-tenant multi-tour-workflow-change-departure-vehicles multi-tour-worker-event-relay multi-tour-api-gateway multi-tour-front"
 siblings() {
   for repo in $SIBLING_REPOS; do
     [ -d "../$repo" ] || git clone -q --depth 1 -b develop "https://github.com/code-corhuila/$repo.git" "../$repo" || { echo "could not get $repo"; return 1; }
@@ -180,7 +180,7 @@ I_up_script_checks_the_siblings_and_resolves_the_composition() {
 I_root_composition_has_every_service_of_the_demo() {
   siblings || return 1
   services=$(dcp --profile tooling config --services 2>&1) || { echo "the composition with the profile tooling does not resolve"; return 1; }
-  for svc in postgres mongo security security-db-migrate identity-audit-api identity-audit-db-migrate workflow-onboard-tenant workflow-onboard-tenant-db-migrate worker-event-relay front api-gateway; do
+  for svc in postgres mongo security security-db-migrate identity-audit-api identity-audit-db-migrate workflow-onboard-tenant workflow-onboard-tenant-db-migrate workflow-change-departure-vehicles workflow-change-departure-vehicles-db-migrate worker-event-relay front api-gateway; do
     printf '%s\n' "$services" | grep -qx "$svc" || { echo "the root composition lacks the service $svc"; return 1; }
   done
 }
@@ -189,7 +189,7 @@ I_root_composition_has_every_service_of_the_demo() {
 I_services_answer_to_the_names_the_gateway_routes_to() {
   siblings || return 1
   out=$(dcp config 2>&1) || { echo "the root composition does not resolve"; return 1; }
-  for alias in multi-tour-security multi-tour-identity-audit-api multi-tour-workflow-onboard-tenant multi-tour-front; do
+  for alias in multi-tour-security multi-tour-identity-audit-api multi-tour-workflow-onboard-tenant multi-tour-workflow-change-departure-vehicles multi-tour-front; do
     printf '%s\n' "$out" | grep -Eq "^[[:space:]]+- $alias\$" || { echo "no service has the network alias $alias"; return 1; }
   done
   printf '%s\n' "$out" | grep -Eq 'LISTEN_ADDR: "?:8090"?' || { echo "the saga does not listen on 8090, where the gateway sends it"; return 1; }

@@ -1,0 +1,9 @@
+# The gateway and the other services route to this container by the name multi-tour-commercial-reservation-api, port 8083
+# (its routes/commercial-reservation.conf and COMMERCIAL_RESERVATION_BASE_URL). The service listens on SERVER_PORT.
+services:
+  commercial-reservation-api:
+    environment:
+      SERVER_PORT: "8083"
+    networks:
+      platform:
+        aliases: [multi-tour-commercial-reservation-api]
