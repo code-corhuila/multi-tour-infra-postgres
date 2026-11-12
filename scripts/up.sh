@@ -35,7 +35,7 @@ fi
 # A repository that platform.yml includes and that is not beside this one stops the start, with its name
 siblings="${SIBLINGS_DIR:-..}"
 missing=0
-for repo in multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db multi-tour-commercial-reservation-api multi-tour-commercial-reservation-db multi-tour-cash-reporting-api multi-tour-cash-reporting-db multi-tour-operations-cost-api multi-tour-operations-cost-db multi-tour-security multi-tour-workflow-onboard-tenant multi-tour-workflow-cancel-departure multi-tour-workflow-change-departure-vehicles multi-tour-worker-event-relay multi-tour-worker-departure-deadlines multi-tour-worker-reprogramming-timers multi-tour-worker-notifications multi-tour-api-gateway multi-tour-front multi-tour-identity-audit-portal multi-tour-commercial-reservation-portal multi-tour-operations-cost-portal multi-tour-cash-reporting-portal; do
+for repo in multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db multi-tour-commercial-reservation-api multi-tour-commercial-reservation-db multi-tour-cash-reporting-api multi-tour-cash-reporting-db multi-tour-operations-cost-api multi-tour-operations-cost-db multi-tour-security multi-tour-workflow-onboard-tenant multi-tour-workflow-cancel-departure multi-tour-workflow-change-departure-vehicles multi-tour-workflow-register-payment multi-tour-workflow-execute-refund multi-tour-worker-event-relay multi-tour-worker-departure-deadlines multi-tour-worker-reprogramming-timers multi-tour-worker-notifications multi-tour-worker-cash-close multi-tour-worker-financial-timeouts multi-tour-worker-payment-expiry multi-tour-worker-retention multi-tour-api-gateway multi-tour-front multi-tour-identity-audit-portal multi-tour-commercial-reservation-portal multi-tour-operations-cost-portal multi-tour-cash-reporting-portal; do
   if [ ! -d "$siblings/$repo" ]; then
     echo "ERROR: $repo is missing in $siblings. Clone it: git clone https://github.com/code-corhuila/$repo.git $siblings/$repo" >&2
     missing=1
@@ -72,6 +72,8 @@ dc --profile tooling run --rm security-db-migrate
 dc --profile tooling run --rm workflow-onboard-tenant-db-migrate
 dc --profile tooling run --rm workflow-cancel-departure-db-migrate
 dc --profile tooling run --rm workflow-change-departure-vehicles-db-migrate
+dc --profile tooling run --rm workflow-register-payment-db-migrate
+dc --profile tooling run --rm workflow-execute-refund-db-migrate
 dc --profile tooling run --rm identity-audit-db-migrate
 dc --profile tooling run --rm commercial-reservation-db-migrate
 dc --profile tooling run --rm cash-reporting-db-migrate
