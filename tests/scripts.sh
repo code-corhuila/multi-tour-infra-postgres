@@ -114,6 +114,13 @@ env_examples_give_the_relay_the_address_of_cash_reporting() {
   done
 }
 
+env_examples_give_commercial_and_cash_their_cash_variables() {
+  for f in env/dev.env.example env/qa.env.example env/main.env.example; do
+    grep -q '^CASH_REPORTING_SERVICE_TOKEN=CHANGE_ME$' "$f" &&
+      grep -q '^CASH_FIXTURES_TENANT_ID=$' "$f" || return 1
+  done
+}
+
 platform_composes_the_reprogramming_timers_worker_with_its_own_token() {
   grep -q '../multi-tour-worker-reprogramming-timers/deploy/compose.yml' platform.yml &&
     grep -q 'multi-tour-worker-reprogramming-timers' scripts/up.sh &&
@@ -128,6 +135,7 @@ scripts_are_valid_shell() {
 }
 
 check "env_examples_give_the_relay_the_address_of_cash_reporting" env_examples_give_the_relay_the_address_of_cash_reporting
+check "env_examples_give_commercial_and_cash_their_cash_variables" env_examples_give_commercial_and_cash_their_cash_variables
 check "scripts_are_valid_shell" scripts_are_valid_shell
 check "platform_composes_the_reprogramming_timers_worker_with_its_own_token" platform_composes_the_reprogramming_timers_worker_with_its_own_token
 check "platform_composes_the_cash_service_and_its_runner" platform_composes_the_cash_service_and_its_runner
