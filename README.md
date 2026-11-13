@@ -47,6 +47,8 @@ echo "k1=$(openssl rand -base64 32)"      # FIELD_ENCRYPTION_KEYS
 openssl rand -base64 48                  # RECOVERY_CODE_KEY
 ```
 
+`CASH_FIXTURES_TENANT_ID` stays empty at first: after the demo tenant is onboarded (step 2 below), put its identifier there and recreate `cash-reporting-api` (`docker compose -f platform.yml --env-file env/dev.env up -d --force-recreate cash-reporting-api`) so the dashboard fixtures load for that tenant. In `qa` and `main` the token is a secret issued by the security service (one per service and environment, 90 days).
+
 `MONGODB_URI` must carry the same password as `IDENTITY_AUDIT_APP_PASSWORD`, and `ALLOWED_ORIGIN` stays `http://localhost:4200`. `COMPOSE_PROFILES=mail-capture` starts Mailpit, which captures every e-mail of the security service and sends none.
 
 ```sh
@@ -59,6 +61,7 @@ sh scripts/dev-token.sh workflow-change-departure-vehicles   # paste it as WORKF
 sh scripts/dev-token.sh worker-notifications 90d   # paste it as WORKER_NOTIFICATIONS_SERVICE_TOKEN (customer e-mails, HU-COM-015)
 sh scripts/dev-token.sh worker-departure-deadlines   # paste it as WORKER_DEPARTURE_DEADLINES_SERVICE_TOKEN (job 3, which calls operations-cost)
 sh scripts/dev-token.sh worker-reprogramming-timers 90d   # paste it as WORKER_REPROGRAMMING_TIMERS_SERVICE_TOKEN (job 5, which calls commercial-reservation)
+sh scripts/dev-token.sh commercial-reservation-api 90d   # paste it as CASH_REPORTING_SERVICE_TOKEN (the cash income of a payment; without it the cash payment answers 503)
 sh scripts/up.sh dev --demo                # now with the five tokens; it refuses to start while a CHANGE_ME is left
 ```
 
