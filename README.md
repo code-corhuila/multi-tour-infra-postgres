@@ -29,8 +29,10 @@ The repositories that `platform.yml` includes (`multi-tour-infra-mongo`, `multi-
 
 ## Demo walkthrough (development only)
 
+`scripts/dev-keys.sh` and `scripts/dev-token.sh` exist only in the `develop` branch (norm 5.9.2): in `qa` and `main` the public key and the service tokens are secrets of the environment, given by the security service. Run this walkthrough from `develop`.
+
 ```sh
-sh scripts/dev-keys.sh                     # RS256 pair in keys/ (ignored); paste the three lines it prints into env/dev.env
+sh scripts/dev-keys.sh                     # develop only: RS256 pair in keys/ (ignored); paste the three lines it prints into env/dev.env
 # fill env/dev.env: every password, ALLOWED_ORIGIN=http://localhost:4200, MONGODB_URI with the same password
 sh scripts/up.sh dev --demo                # refuses to start while a CHANGE_ME is left
 sh scripts/dev-token.sh worker-event-relay # paste the line as SERVICE_TOKEN

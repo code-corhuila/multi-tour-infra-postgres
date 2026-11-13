@@ -11,20 +11,9 @@ TMP=$(mktemp -d)
 trap 'rmdir_all' EXIT
 rmdir_all() { find "$TMP" -depth -delete; }
 
-keys_are_made_once_and_are_a_rs256_pair() {
-  KEYS_DIR="$TMP/keys" sh scripts/dev-keys.sh >"$TMP/out.txt" || return 1
-  [ -s "$TMP/keys/private.pem" ] && [ -s "$TMP/keys/public.pem" ] || return 1
-  openssl pkey -in "$TMP/keys/private.pem" -noout || return 1
-  first=$(cksum < "$TMP/keys/private.pem")
-  KEYS_DIR="$TMP/keys" sh scripts/dev-keys.sh >/dev/null || return 1
-  [ "$first" = "$(cksum < "$TMP/keys/private.pem")" ]
-}
-
-keys_script_prints_the_variables_to_paste() {
-  grep -q '^JWT_KEYS_DIR=' "$TMP/out.txt" && grep -q '^JWT_PUBLIC_KEY=' "$TMP/out.txt" && ! grep -q 'PRIVATE' "$TMP/out.txt"
-}
-
-token_script_refuses_a_missing_name() { ! sh scripts/dev-token.sh; }
+# Norm 5.9.2: the development key and token scripts exist only in develop; qa and main get the keys and the service tokens as secrets of
+# the environment, from the security service.
+dev_scripts_exist_only_in_develop() { [ ! -e scripts/dev-keys.sh ] && [ ! -e scripts/dev-token.sh ]; }
 
 portal_script_refuses_a_missing_folder() { ! PORTAL_DIR="$TMP/none" FRONT_DIR="$TMP/none" sh scripts/build-portal.sh; }
 portal_script_copies_the_module_and_its_styles() {
@@ -82,13 +71,11 @@ bootstrap_passes_the_password_only_through_stdin() {
 }
 
 scripts_are_valid_shell() {
-  for s in scripts/dev-keys.sh scripts/dev-token.sh scripts/build-portal.sh scripts/bootstrap-admin.sh; do sh -n "$s" || return 1; done
+  for s in scripts/build-portal.sh scripts/bootstrap-admin.sh; do sh -n "$s" || return 1; done
 }
 
 check "scripts_are_valid_shell" scripts_are_valid_shell
-check "keys_are_made_once_and_are_a_rs256_pair" keys_are_made_once_and_are_a_rs256_pair
-check "keys_script_prints_the_variables_to_paste" keys_script_prints_the_variables_to_paste
-check "token_script_refuses_a_missing_name" token_script_refuses_a_missing_name
+check "dev_scripts_exist_only_in_develop" dev_scripts_exist_only_in_develop
 check "portal_script_refuses_a_missing_folder" portal_script_refuses_a_missing_folder
 check "portal_script_copies_the_module_and_its_styles" portal_script_copies_the_module_and_its_styles
 check "bootstrap_refuses_without_an_email" bootstrap_refuses_without_an_email
