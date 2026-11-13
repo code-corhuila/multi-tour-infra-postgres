@@ -1,6 +1,11 @@
 # The gateway routes to this container by the name multi-tour-identity-audit-api (its routes/identity-audit.conf)
+# The service reads the cash boxes of a tenant from cash-reporting before a change of time zone (HU-IDA-004) with its own SERVICE
+# token (sub identity-audit-api): the one variables file has SERVICE_TOKEN for the event relay, so this service has its own name.
+# CASH_REPORTING_BASE_URL is the one the relay already uses. Without the token a change of zone answers 503 and nothing changes.
 services:
   identity-audit-api:
+    environment:
+      SERVICE_TOKEN: ${IDENTITY_AUDIT_SERVICE_TOKEN:-}
     networks:
       platform:
         aliases: [multi-tour-identity-audit-api]
