@@ -27,18 +27,23 @@ export COMPOSE_FILE="${COMPOSE_FILE:-platform.yml}"
 root="${BACKUP_ROOT:-backups/$env_name}"
 date=$(date -u +%Y-%m-%d)
 dir="$root/$date"
-# created here, not by Docker, so the folder belongs to this user and can be deleted later
-mkdir -p "$dir"
-BACKUP_DIR=$(cd "$dir" && pwd)
+# Both dumps go to a partial folder that replaces the dated one only when both succeed: a failed second backup
+# of the same day leaves the good one as it was. Created here, not by Docker, so this user can delete it later.
+partial="$dir.partial-$$"
+trap 'rm -rf "$partial" "$dir.old-$$"' EXIT
+mkdir -p "$partial"
+BACKUP_DIR=$(cd "$partial" && pwd)
 command -v cygpath >/dev/null 2>&1 && BACKUP_DIR=$(cygpath -m "$BACKUP_DIR")
 export BACKUP_DIR
 
 docker compose --env-file "$env_file" --profile tooling run --rm postgres-backup
 docker compose --env-file "$env_file" --profile tooling run --rm mongo-backup
+[ ! -e "$dir" ] || mv "$dir" "$dir.old-$$"
+mv "$partial" "$dir"
 echo "backup written to $dir"
 
-# Only after a good backup: the dated folders older than 30 days go
-cutoff=$(date -u -d '30 days ago' +%Y%m%d)
+# Only after a good backup: the dated folders older than 30 days go (GNU date, else BSD date)
+cutoff=$(date -u -d '30 days ago' +%Y%m%d 2>/dev/null || date -u -v-30d +%Y%m%d)
 for old in "$root"/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]; do
   [ -d "$old" ] || continue
   if [ "$(basename "$old" | tr -d -)" -lt "$cutoff" ]; then

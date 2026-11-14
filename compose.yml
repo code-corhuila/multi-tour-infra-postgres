@@ -60,7 +60,10 @@ services:
     # Only the project network: on platform, "postgres" can also be the instance of another environment
     networks: [default]
 
-  # Brings the database back to the backup in one transaction: all of it or nothing.
+  # Brings the database back to the backup: it restores into a new database in one transaction and only then
+  # replaces the current one, so a table created after the backup (a failed migration) does not survive and a
+  # failed restore leaves the current data. The roles and their search_path are of the instance, not of the
+  # database; the dump brings back the extensions (pgcrypto).
   postgres-restore:
     image: postgres:18.6-alpine
     profiles: [tooling]
@@ -72,7 +75,17 @@ services:
       PGDATABASE: ${PG_DATABASE:?PG_DATABASE is required, set it in env/<environment>.env}
       PGUSER: ${PG_ADMIN_USER:?PG_ADMIN_USER is required, set it in env/<environment>.env}
       PGPASSWORD: ${PG_ADMIN_PASSWORD:?PG_ADMIN_PASSWORD is required, set it in env/<environment>.env}
-    command: ["sh", "-c", "pg_restore --clean --if-exists --single-transaction --dbname=\"$$PGDATABASE\" /backup/postgres.dump"]
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        new="$${PGDATABASE}_restore"
+        dropdb --maintenance-db=postgres --if-exists --force "$$new"
+        createdb --maintenance-db=postgres "$$new"
+        pg_restore --single-transaction --dbname="$$new" /backup/postgres.dump
+        dropdb --maintenance-db=postgres --force "$$PGDATABASE"
+        printf 'ALTER DATABASE :"new" RENAME TO :"old"\n' | psql -d postgres -v ON_ERROR_STOP=1 -v new="$$new" -v old="$$PGDATABASE"
     volumes:
       - ${BACKUP_DIR:-./backups}:/backup:ro
     networks: [default]

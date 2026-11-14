@@ -142,6 +142,12 @@ brings both instances back to one dated folder; stop the services first, not the
 daily schedule is the host's (a cron), never a worker; encryption and a copy away from the host
 (S3) belong to the environment that operates the platform. `backups/` is ignored by git.
 
+A backup is written to a partial folder and replaces the dated one only when both dumps succeed, so a
+failed backup keeps the previous one of that day. `scripts/up.sh qa` and `scripts/up.sh main` run
+`backup.sh` before the migration runners and stop if it fails (J.5.4). In `qa` and `main` a restore
+goes only through `scripts/restore.sh <environment> <date> --yes`: never run `postgres-restore` or
+`mongo-restore` by hand, they replace the data without asking.
+
 ## How to test it
 
 ```sh
@@ -152,9 +158,12 @@ Needs Docker. It starts a throw-away project, runs the five checks of the spec (
 per environment, the init script only on an empty volume, no real `.env` versioned, every schema
 with its user, the init script twice without changes), then the checks of the root composition:
 every `*-db-migrate` runner is `tooling`, waits for its instance healthy and takes its credentials
-from the variables file, and its second run applies nothing to its own control table. It runs on a
-network of its own (`multi-tour-ci-platform`), never on `platform`, and removes everything at the
-end. The CI runs the same script on every pull request to `develop` and `qa`.
+from the variables file, and its second run applies nothing to its own control table. It also checks
+the backup and restore of spec 003: a backup and a restore bring back a row and a document and drop a
+table created after the backup, a failed backup keeps the previous one, a restore in `qa` and `main`
+needs `--yes`, and `scripts/up.sh` backs up `qa` and `main` before migrating. It runs on a network of
+its own (`multi-tour-ci-platform`), never on `platform`, and removes everything at the end. The CI
+runs the same script on every pull request to `develop` and `qa`.
 
 ## What is missing
 
