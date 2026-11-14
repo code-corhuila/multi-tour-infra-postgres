@@ -264,6 +264,40 @@ I_demo_front_port_is_a_separate_opt_in_file() {
   ! printf '%s\n' "$out" | awk '/^  front:/ {f=1; next} /^  [a-z]/ {f=0} f && /^    ports:/ {bad=1} END {exit !bad}' || { echo "the front publishes a port: only the gateway may (a browser on 4200 would reach the front without the API)"; return 1; }
 }
 
+# ---- backup and restore (spec 003-hu-inf-001, RN-INF-30): the scripts run against this throwaway project
+# They read COMPOSE_FILE, the variable of Compose itself: here it adds the network of this project
+BACKUP_ROOT="$TMP/backups"
+SEP=':'
+command -v cygpath >/dev/null 2>&1 && SEP=';'
+scripts_env() { COMPOSE_FILE="platform.yml$SEP$ISOLATE_ARG" ENV_FILE="$ENVF_ARG" BACKUP_ROOT="$BACKUP_ROOT" "$@"; }
+mongo_admin() { dcp exec -T mongo mongosh --quiet -u "$(value MONGO_INITDB_ROOT_USERNAME)" -p "$(password mongo-admin)" --authenticationDatabase admin --eval "$1"; }
+
+I_backup_then_restore_brings_back_a_row() {
+  siblings || return 1
+  dcp up -d --wait --wait-timeout 120 postgres mongo >/dev/null 2>&1 || { echo "the instances did not start healthy"; return 1; }
+  psql_admin -c "CREATE TABLE IF NOT EXISTS public.verify_backup (v text); INSERT INTO public.verify_backup VALUES ('before')" >/dev/null || { echo "could not write the row"; return 1; }
+  mongo_admin "db.getSiblingDB('verify').backup.insertOne({v: 'before'})" >/dev/null || { echo "could not write the document"; return 1; }
+  # a backup older than 30 days, which the next backup must delete
+  mkdir -p "$BACKUP_ROOT/2000-01-01"
+  out=$(scripts_env sh scripts/backup.sh dev 2>&1) || { echo "backup.sh failed:"; printf '%s\n' "$out" | tail -n 5; return 1; }
+  today=$(date -u +%Y-%m-%d)
+  [ -s "$BACKUP_ROOT/$today/postgres.dump" ] || { echo "no dated backup of PostgreSQL in $today/"; return 1; }
+  [ -s "$BACKUP_ROOT/$today/mongo.archive" ] || { echo "no dated backup of MongoDB in $today/"; return 1; }
+  [ ! -d "$BACKUP_ROOT/2000-01-01" ] || { echo "the backup older than 30 days was kept"; return 1; }
+  psql_admin -c "DELETE FROM public.verify_backup" >/dev/null && mongo_admin "db.getSiblingDB('verify').backup.deleteMany({})" >/dev/null || { echo "could not delete after the backup"; return 1; }
+  out=$(scripts_env sh scripts/restore.sh dev "$today" 2>&1) || { echo "restore.sh failed:"; printf '%s\n' "$out" | tail -n 5; return 1; }
+  [ "$(psql_admin -c "SELECT count(*) FROM public.verify_backup WHERE v = 'before'")" = 1 ] || { echo "the row is not back after the restore"; return 1; }
+  [ "$(mongo_admin "db.getSiblingDB('verify').backup.countDocuments({v: 'before'})")" = 1 ] || { echo "the document is not back after the restore"; return 1; }
+}
+
+I_restore_asks_for_confirmation_in_qa_and_main() {
+  mkdir -p "$BACKUP_ROOT/2026-01-01"
+  for environment in qa main; do
+    out=$(scripts_env sh scripts/restore.sh "$environment" 2026-01-01 2>&1) && { echo "restore.sh $environment ran without --yes"; return 1; }
+    printf '%s\n' "$out" | grep -q -- '--yes' || { echo "restore.sh $environment does not say it needs --yes ('$out')"; return 1; }
+  done
+}
+
 # ---- setup: a clean throwaway project, then one instance
 build_env
 dc down -v --remove-orphans >/dev/null 2>&1 || true
@@ -287,6 +321,8 @@ run "I·up_script_checks_the_siblings_and_resolves_the_composition" I_up_script_
 run "I:root_composition_has_every_service_of_the_demo" I_root_composition_has_every_service_of_the_demo
 run "I:services_answer_to_the_names_the_gateway_routes_to" I_services_answer_to_the_names_the_gateway_routes_to
 run "I:demo_front_port_is_a_separate_opt_in_file" I_demo_front_port_is_a_separate_opt_in_file
+run "I·restore_asks_for_confirmation_in_qa_and_main" I_restore_asks_for_confirmation_in_qa_and_main
+run "I·backup_then_restore_brings_back_a_row" I_backup_then_restore_brings_back_a_row
 
 echo "finished in $(( $(date +%s) - started )) s"
 [ "$fail" = 0 ] && echo "ALL CHECKS PASSED" || echo "SOME CHECKS FAILED"
