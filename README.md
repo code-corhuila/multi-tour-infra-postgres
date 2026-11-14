@@ -136,8 +136,11 @@ sh tests/verify.sh
 
 Needs Docker. It starts a throw-away project, runs the five checks of the spec (one container
 per environment, the init script only on an empty volume, no real `.env` versioned, every schema
-with its user, the init script twice without changes) and removes it. The CI runs the same
-script on every pull request to `develop` and `qa`.
+with its user, the init script twice without changes), then the checks of the root composition:
+every `*-db-migrate` runner is `tooling`, waits for its instance healthy and takes its credentials
+from the variables file, and its second run applies nothing to its own control table. It runs on a
+network of its own (`multi-tour-ci-platform`), never on `platform`, and removes everything at the
+end. The CI runs the same script on every pull request to `develop` and `qa`.
 
 ## What is missing
 

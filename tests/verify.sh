@@ -1,5 +1,5 @@
 #!/bin/sh
-# The V checks of the spec (RN-INF-01 to RN-INF-05) against a throwaway instance. CI and a
+# The V and I checks of the specs (RN-INF-01 to RN-INF-05; 003: every runner) against a throwaway instance. CI and a
 # developer run this same file; Docker is the only requirement.
 #
 # It never touches dev, qa or main: it starts the project multi-tour-ci from a variables file built
@@ -31,11 +31,21 @@ fail=0
 # quote at the end exercises the escaping of the init script (plan, Risks).
 password() { printf "%s-%s'x" "$BASE" "$1"; }
 
+# On a shared Docker host the network platform also holds the instances of dev and qa under the same names
+# (postgres, mongo): this project gets a network of its own, so a runner never reaches another environment
+NETWORK="$PROJECT-platform"
+ISOLATE="$TMP/isolate.yml"
+printf 'networks:\n  platform:\n    name: %s\n    external: true\n' "$NETWORK" > "$ISOLATE"
+ISOLATE_ARG="$ISOLATE"
+command -v cygpath >/dev/null 2>&1 && ISOLATE_ARG=$(cygpath -m "$ISOLATE")
+
 # -p wins over the file, so no variable can make this script address another environment
-dc() { docker compose -p "$PROJECT" --env-file "$ENVF_ARG" "$@"; }
+dc() { docker compose -p "$PROJECT" -f compose.yml -f "$ISOLATE_ARG" --env-file "$ENVF_ARG" "$@"; }
 
 cleanup() {
+  dcp down -v --remove-orphans >/dev/null 2>&1 || true
   dc down -v --remove-orphans >/dev/null 2>&1 || true
+  docker network rm "$NETWORK" >/dev/null 2>&1 || true
   rm -rf "$TMP"
 }
 trap cleanup EXIT
@@ -50,6 +60,8 @@ build_env() {
       COMPOSE_PROJECT_NAME=*) printf 'COMPOSE_PROJECT_NAME=%s\n' "$PROJECT" ;;
       PG_ADMIN_PASSWORD=*) printf 'PG_ADMIN_PASSWORD="%s"\n' "$(password admin)" ;;
       MONGO_INITDB_ROOT_PASSWORD=*) printf 'MONGO_INITDB_ROOT_PASSWORD="%s"\n' "$(password mongo-admin)" ;;
+      # the services require it only to resolve; nothing here verifies a token
+      JWT_PUBLIC_KEY=) printf 'JWT_PUBLIC_KEY=ci-placeholder\n' ;;
       *_APP_PASSWORD=*)
         name=${line%%=*}
         schema=$(printf '%s' "${name%_APP_PASSWORD}" | tr 'A-Z' 'a-z')
@@ -141,10 +153,11 @@ V_init_runs_twice_without_error() {
 
 # ---- the root composition (spec 001-hu-inf-001, RN-INF-01 to RN-INF-04): it is only resolved, never started
 # -f platform.yml and the same throwaway project: what Docker would run is what is read
-dcp() { docker compose -p "$PROJECT" -f platform.yml --env-file "$ENVF_ARG" "$@"; }
+dcp() { docker compose -p "$PROJECT" -f platform.yml -f "$ISOLATE_ARG" --env-file "$ENVF_ARG" "$@"; }
 
 # The repositories the composition includes sit beside this one; the CI has only this one, so it gets the rest
-SIBLING_REPOS="multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db multi-tour-security multi-tour-workflow-onboard-tenant multi-tour-workflow-cancel-departure multi-tour-workflow-change-departure-vehicles multi-tour-worker-event-relay multi-tour-api-gateway multi-tour-front"
+# Read from platform.yml itself, so a new include is cloned too.
+SIBLING_REPOS=$(sed -n 's#.*\.\./\(multi-tour-[a-z-]*\)/.*#\1#p' platform.yml | sort -u)
 siblings() {
   for repo in $SIBLING_REPOS; do
     [ -d "../$repo" ] || git clone -q --depth 1 -b develop "https://github.com/code-corhuila/$repo.git" "../$repo" || { echo "could not get $repo"; return 1; }
@@ -165,11 +178,58 @@ I_missing_sibling_fails_with_its_name() {
   printf '%s\n' "$out" | grep -q 'multi-tour-identity-audit-api' || { echo "the message does not name the missing repository"; return 1; }
 }
 
+block_of() { # service, resolved configuration: the lines of that service only
+  printf '%s\n' "$2" | awk -v s="  $1:" '$0 == s {f=1; next} /^  [^ ]/ || /^[^ ]/ {f=0} f'
+}
+
+# Every *-db-migrate of the composition (plan D-01), so a new -db is covered without editing this file
+runners() { dcp --profile tooling config --services 2>/dev/null | grep -E -- '-db-migrate$'; }
+
 I_runner_waits_for_the_healthy_instance_and_is_not_started_by_up() {
   siblings || return 1
-  dcp config --services 2>/dev/null | grep -q 'identity-audit-db-migrate' && { echo "the runner starts with up (it needs the profile tooling)"; return 1; }
   out=$(dcp --profile tooling config 2>&1) || { echo "the composition with the profile tooling does not resolve"; return 1; }
-  printf '%s\n' "$out" | awk '/^  identity-audit-db-migrate:/ {f=1; next} /^  [a-z]/ {f=0} f && /condition: service_healthy/ {ok=1} END {exit !ok}' || { echo "the runner does not wait for service_healthy"; return 1; }
+  list=$(runners)
+  [ -n "$list" ] || { echo "the composition has no *-db-migrate runner"; return 1; }
+  started=$(dcp config --services 2>/dev/null)
+  for r in $list; do
+    printf '%s\n' "$started" | grep -qx "$r" && { echo "$r starts with up (it needs the profile tooling)"; return 1; }
+    block=$(block_of "$r" "$out")
+    printf '%s\n' "$block" | grep -A3 -E '^    depends_on:' | grep -Eq 'condition: service_healthy' || { echo "$r does not wait for its instance service_healthy"; return 1; }
+    # the throwaway administrator password exists only in the variables file of this run
+    printf '%s\n' "$block" | grep -Fq -e "$BASE-admin" -e "$BASE-mongo-admin" || { echo "$r does not take its credentials from env/<environment>.env"; return 1; }
+  done
+}
+
+control_rows() { # runner, its resolved block: how many changesets its own control table holds
+  table=$(printf '%s\n' "$2" | grep -o 'databasechangelog_[a-z_]*' | grep -v '^databasechangeloglock_' | head -1)
+  [ -n "$table" ] || { echo "no own control table (databasechangelog_<schema>)"; return 1; }
+  if printf '%s\n' "$2" | grep -q 'mongodb://'; then
+    db=$(printf '%s\n' "$2" | sed -n 's#.*mongodb://[^/]*/\([a-z_]*\).*#\1#p' | head -1)
+    dcp exec -T mongo mongosh --quiet -u "$(value MONGO_INITDB_ROOT_USERNAME)" -p "$(password mongo-admin)" --authenticationDatabase admin \
+      --eval "db.getSiblingDB('$db').getCollectionNames().includes('$table') ? db.getSiblingDB('$db').getCollection('$table').countDocuments() : 'missing'"
+  else
+    schema=$(psql_admin -c "SELECT schemaname FROM pg_tables WHERE tablename = '$table'")
+    [ "$(printf '%s\n' "$schema" | grep -c .)" = 1 ] || { echo missing; return 0; }
+    psql_admin -c "SELECT count(*) FROM \"$schema\".\"$table\""
+  fi
+}
+
+I_second_runner_run_applies_nothing() {
+  siblings || return 1
+  out=$(dcp --profile tooling config 2>&1) || { echo "the composition with the profile tooling does not resolve"; return 1; }
+  dcp up -d --wait --wait-timeout 120 postgres mongo >/dev/null 2>&1 || { echo "the instances did not start healthy"; return 1; }
+  for r in $(runners); do
+    block=$(block_of "$r" "$out")
+    run1=$(dcp --profile tooling run --rm "$r" 2>&1) || { echo "$r failed on an empty instance:"; printf '%s\n' "$run1" | tail -n 5; return 1; }
+    first=$(control_rows "$r" "$block") || { echo "$r: $first"; return 1; }
+    case $first in ''|missing|*[!0-9]*) echo "$r: its own control table does not exist ('$first')"; return 1 ;; esac
+    [ "$first" -gt 0 ] || { echo "$r applied no changeset on an empty instance"; return 1; }
+    run2=$(dcp --profile tooling run --rm "$r" 2>&1) || { echo "$r failed on its second run:"; printf '%s\n' "$run2" | tail -n 5; return 1; }
+    second=$(control_rows "$r" "$block")
+    [ "$first" = "$second" ] || { echo "$r applied something on its second run ($first changesets, then $second)"; return 1; }
+  done
+  # one instance at a time on a small machine: the runners leave nothing, the instance of MongoDB goes
+  dcp stop mongo >/dev/null 2>&1 || true
 }
 
 I_up_script_checks_the_siblings_and_resolves_the_composition() {
@@ -207,7 +267,7 @@ I_demo_front_port_is_a_separate_opt_in_file() {
 # ---- setup: a clean throwaway project, then one instance
 build_env
 dc down -v --remove-orphans >/dev/null 2>&1 || true
-docker network inspect platform >/dev/null 2>&1 || docker network create platform >/dev/null
+docker network inspect "$NETWORK" >/dev/null 2>&1 || docker network create "$NETWORK" >/dev/null
 ADMIN=$(value PG_ADMIN_USER)
 DB=$(value PG_DATABASE)
 STARTED=0
@@ -222,6 +282,7 @@ run "V·init_runs_twice_without_error" V_init_runs_twice_without_error
 run "I·root_composition_publishes_no_port_of_the_api" I_root_composition_publishes_no_port_of_the_api
 run "I·missing_sibling_fails_with_its_name" I_missing_sibling_fails_with_its_name
 run "I·runner_waits_for_the_healthy_instance_and_is_not_started_by_up" I_runner_waits_for_the_healthy_instance_and_is_not_started_by_up
+run "I·second_runner_run_applies_nothing" I_second_runner_run_applies_nothing
 run "I·up_script_checks_the_siblings_and_resolves_the_composition" I_up_script_checks_the_siblings_and_resolves_the_composition
 run "I:root_composition_has_every_service_of_the_demo" I_root_composition_has_every_service_of_the_demo
 run "I:services_answer_to_the_names_the_gateway_routes_to" I_services_answer_to_the_names_the_gateway_routes_to
