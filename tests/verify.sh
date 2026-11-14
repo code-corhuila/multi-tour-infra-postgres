@@ -1,6 +1,7 @@
 #!/bin/sh
-# The V and I checks of the specs (RN-INF-01 to RN-INF-05; 003: every runner) against a throwaway instance. CI and a
-# developer run this same file; Docker is the only requirement.
+# The V checks of the spec (RN-INF-01 to RN-INF-05), the I checks of the root composition (spec 001), every
+# migration runner (spec 003, INF3-01) and the backup and restore (spec 003-hu-inf-001-back-up-the-platform,
+# RN-INF-30) against a throwaway instance. CI and a developer run this same file; Docker is the only requirement.
 #
 # It never touches dev, qa or main: it starts the project multi-tour-ci from a variables file built
 # in a temporary directory with passwords generated now, so no secret is written in the repository.
@@ -264,6 +265,70 @@ I_demo_front_port_is_a_separate_opt_in_file() {
   ! printf '%s\n' "$out" | awk '/^  front:/ {f=1; next} /^  [a-z]/ {f=0} f && /^    ports:/ {bad=1} END {exit !bad}' || { echo "the front publishes a port: only the gateway may (a browser on 4200 would reach the front without the API)"; return 1; }
 }
 
+# ---- backup and restore (spec 003-hu-inf-001, RN-INF-30): the scripts run against this throwaway project
+# They read COMPOSE_FILE, the variable of Compose itself: here it adds the network of this project
+BACKUP_ROOT="$TMP/backups"
+SEP=':'
+command -v cygpath >/dev/null 2>&1 && SEP=';'
+scripts_env() { COMPOSE_FILE="platform.yml$SEP$ISOLATE_ARG" ENV_FILE="$ENVF_ARG" BACKUP_ROOT="$BACKUP_ROOT" "$@"; }
+mongo_admin() { dcp exec -T mongo mongosh --quiet -u "$(value MONGO_INITDB_ROOT_USERNAME)" -p "$(password mongo-admin)" --authenticationDatabase admin --eval "$1"; }
+
+I_backup_then_restore_brings_back_a_row() {
+  siblings || return 1
+  dcp up -d --wait --wait-timeout 120 postgres mongo >/dev/null 2>&1 || { echo "the instances did not start healthy"; return 1; }
+  psql_admin -c "CREATE TABLE IF NOT EXISTS public.verify_backup (v text); INSERT INTO public.verify_backup VALUES ('before')" >/dev/null || { echo "could not write the row"; return 1; }
+  mongo_admin "db.getSiblingDB('verify').backup.insertOne({v: 'before'})" >/dev/null || { echo "could not write the document"; return 1; }
+  # a backup older than 30 days, which the next backup must delete
+  mkdir -p "$BACKUP_ROOT/2000-01-01"
+  out=$(scripts_env sh scripts/backup.sh dev 2>&1) || { echo "backup.sh failed:"; printf '%s\n' "$out" | tail -n 5; return 1; }
+  today=$(date -u +%Y-%m-%d)
+  [ -s "$BACKUP_ROOT/$today/postgres.dump" ] || { echo "no dated backup of PostgreSQL in $today/"; return 1; }
+  [ -s "$BACKUP_ROOT/$today/mongo.archive" ] || { echo "no dated backup of MongoDB in $today/"; return 1; }
+  [ ! -d "$BACKUP_ROOT/2000-01-01" ] || { echo "the backup older than 30 days was kept"; return 1; }
+  psql_admin -c "DELETE FROM public.verify_backup" >/dev/null && mongo_admin "db.getSiblingDB('verify').backup.deleteMany({})" >/dev/null || { echo "could not delete after the backup"; return 1; }
+  # a table created after the backup (a failed migration does it) must go, or the next runner finds it already there
+  psql_admin -c "CREATE TABLE public.verify_after_backup (v text)" >/dev/null || { echo "could not create the table after the backup"; return 1; }
+  out=$(scripts_env sh scripts/restore.sh dev "$today" 2>&1) || { echo "restore.sh failed:"; printf '%s\n' "$out" | tail -n 5; return 1; }
+  [ "$(psql_admin -c "SELECT count(*) FROM public.verify_backup WHERE v = 'before'")" = 1 ] || { echo "the row is not back after the restore"; return 1; }
+  [ "$(psql_admin -c "SELECT to_regclass('public.verify_after_backup') IS NULL")" = t ] || { echo "the table created after the backup survived the restore"; return 1; }
+  [ "$(psql_admin -c "SELECT count(*) FROM pg_extension WHERE extname = 'pgcrypto'")" = 1 ] || { echo "pgcrypto is gone after the restore"; return 1; }
+  [ "$(mongo_admin "db.getSiblingDB('verify').backup.countDocuments({v: 'before'})")" = 1 ] || { echo "the document is not back after the restore"; return 1; }
+}
+
+# Runs after the good backup of I_backup_then_restore_brings_back_a_row: the MongoDB dump writes part of its
+# file and fails, as an unreachable instance would, and the backup of the same day must stay as it was
+I_failed_backup_keeps_the_previous_one() {
+  today=$(date -u +%Y-%m-%d)
+  [ -s "$BACKUP_ROOT/$today/mongo.archive" ] || { echo "no previous backup of $today to keep (the backup check failed)"; return 1; }
+  before=$(cat "$BACKUP_ROOT/$today/postgres.dump" "$BACKUP_ROOT/$today/mongo.archive" | cksum)
+  printf 'services:\n  mongo-backup:\n    command: ["echo partial > /backup/mongo.archive; exit 1"]\n' > "$TMP/break.yml"
+  brk="$TMP/break.yml"
+  command -v cygpath >/dev/null 2>&1 && brk=$(cygpath -m "$brk")
+  scripts_env env COMPOSE_FILE="platform.yml$SEP$ISOLATE_ARG$SEP$brk" sh scripts/backup.sh dev >/dev/null 2>&1 && { echo "backup.sh succeeded although the MongoDB dump failed"; return 1; }
+  [ "$(cat "$BACKUP_ROOT/$today/postgres.dump" "$BACKUP_ROOT/$today/mongo.archive" | cksum)" = "$before" ] || { echo "the failed backup changed the good backup of $today"; return 1; }
+  leftover=$(ls "$BACKUP_ROOT" | grep -v '^[0-9-]*$')
+  [ -z "$leftover" ] || { echo "the failed backup left $leftover behind"; return 1; }
+}
+
+# J.5.4: in qa and main the data is backed up after the instances are healthy and before any runner migrates
+I_up_backs_up_qa_and_main_before_migrating() {
+  backup=$(grep -n 'scripts/backup.sh' scripts/up.sh | head -1)
+  [ -n "$backup" ] || { echo "up.sh does not run scripts/backup.sh"; return 1; }
+  printf '%s\n' "$backup" | grep -q 'qa|main' || { echo "up.sh does not limit the backup to qa and main"; return 1; }
+  b=${backup%%:*}
+  i=$(grep -n 'up -d --wait postgres mongo' scripts/up.sh | head -1 | cut -d: -f1)
+  m=$(grep -n 'run --rm .*-db-migrate' scripts/up.sh | head -1 | cut -d: -f1)
+  [ -n "$i" ] && [ -n "$m" ] && [ "$i" -lt "$b" ] && [ "$b" -lt "$m" ] || { echo "the backup is not between the healthy instances (line $i) and the first runner (line $m)"; return 1; }
+}
+
+I_restore_asks_for_confirmation_in_qa_and_main() {
+  mkdir -p "$BACKUP_ROOT/2026-01-01"
+  for environment in qa main; do
+    out=$(scripts_env sh scripts/restore.sh "$environment" 2026-01-01 2>&1) && { echo "restore.sh $environment ran without --yes"; return 1; }
+    printf '%s\n' "$out" | grep -q -- '--yes' || { echo "restore.sh $environment does not say it needs --yes ('$out')"; return 1; }
+  done
+}
+
 # ---- setup: a clean throwaway project, then one instance
 build_env
 dc down -v --remove-orphans >/dev/null 2>&1 || true
@@ -287,6 +352,10 @@ run "I·up_script_checks_the_siblings_and_resolves_the_composition" I_up_script_
 run "I:root_composition_has_every_service_of_the_demo" I_root_composition_has_every_service_of_the_demo
 run "I:services_answer_to_the_names_the_gateway_routes_to" I_services_answer_to_the_names_the_gateway_routes_to
 run "I:demo_front_port_is_a_separate_opt_in_file" I_demo_front_port_is_a_separate_opt_in_file
+run "I·restore_asks_for_confirmation_in_qa_and_main" I_restore_asks_for_confirmation_in_qa_and_main
+run "I·backup_then_restore_brings_back_a_row" I_backup_then_restore_brings_back_a_row
+run "I·failed_backup_keeps_the_previous_one" I_failed_backup_keeps_the_previous_one
+run "I·up_backs_up_qa_and_main_before_migrating" I_up_backs_up_qa_and_main_before_migrating
 
 echo "finished in $(( $(date +%s) - started )) s"
 [ "$fail" = 0 ] && echo "ALL CHECKS PASSED" || echo "SOME CHECKS FAILED"
