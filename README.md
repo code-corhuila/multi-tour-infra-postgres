@@ -128,6 +128,20 @@ open `psql` inside the container:
 docker compose --env-file env/dev.env exec postgres psql -U multitour_admin -d multitour
 ```
 
+## Backup and restore
+
+```sh
+sh scripts/backup.sh dev                     # backups/dev/<YYYY-MM-DD>/postgres.dump and mongo.archive
+sh scripts/restore.sh dev 2026-11-14         # qa and main also need --yes
+```
+
+`backup.sh` runs the runners `postgres-backup` (`pg_dump` of the whole database, every schema) and
+`mongo-backup` (of `multi-tour-infra-mongo`, the whole instance with the oplog), both of profile
+`tooling`, and then deletes the dated folders of that environment older than 30 days. `restore.sh`
+brings both instances back to one dated folder; stop the services first, not the instances. The
+daily schedule is the host's (a cron), never a worker; encryption and a copy away from the host
+(S3) belong to the environment that operates the platform. `backups/` is ignored by git.
+
 ## How to test it
 
 ```sh
@@ -144,7 +158,7 @@ end. The CI runs the same script on every pull request to `develop` and `qa`.
 
 ## What is missing
 
-Observability and backups, and the stories of the services that `platform.yml` already composes
+Observability (D-INF3-1 of the spec 003), and the stories of the services that `platform.yml` already composes
 (`code-corhuila/multi-tour-docs#199`).
 
 
