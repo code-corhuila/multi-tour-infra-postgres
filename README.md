@@ -128,6 +128,35 @@ open `psql` inside the container:
 docker compose --env-file env/dev.env exec postgres psql -U multitour_admin -d multitour
 ```
 
+## Backup and restore
+
+```sh
+sh scripts/backup.sh dev                     # backups/dev/<YYYY-MM-DD>/postgres.dump and mongo.archive
+sh scripts/restore.sh dev 2026-11-14         # qa and main also need --yes
+```
+
+`backup.sh` runs the runners `postgres-backup` (`pg_dump` of the whole database, every schema) and
+`mongo-backup` (of `multi-tour-infra-mongo`, the whole instance with the oplog), both of profile
+`tooling`, and then deletes the dated folders of that environment older than 30 days. `restore.sh`
+brings both instances back to one dated folder; stop the services first, not the instances. The
+daily schedule is the host's (a cron), never a worker; encryption and a copy away from the host
+(S3) belong to the environment that operates the platform. `backups/` is ignored by git.
+
+A backup is written to a partial folder and replaces the dated one only when both dumps succeed, so a
+failed backup keeps the previous one of that day. `scripts/up.sh qa` and `scripts/up.sh main` run
+`backup.sh` before the migration runners and stop if it fails (J.5.4). In `qa` and `main` a restore
+goes only through `scripts/restore.sh <environment> <date> --yes`: never run `postgres-restore` or
+`mongo-restore` by hand, they replace the data without asking.
+
+The restore of PostgreSQL loads the dump into a new database `<db>_restore` and only then drops the
+current one and renames the new one, so a failed load leaves the data as it was. Between the drop
+and the rename there is no database for a moment; if the rename fails, the data is in `<db>_restore`
+and `ALTER DATABASE <db>_restore RENAME TO <db>` (as the administrator, connected to `postgres`)
+brings it back; running `restore.sh` again also works. The restore is not atomic across the two
+engines: if MongoDB fails after PostgreSQL, run `restore.sh` again with the same date. In MongoDB,
+`mongorestore --drop` replaces only the collections of the archive: a collection created after the
+backup stays.
+
 ## How to test it
 
 ```sh
@@ -138,13 +167,16 @@ Needs Docker. It starts a throw-away project, runs the five checks of the spec (
 per environment, the init script only on an empty volume, no real `.env` versioned, every schema
 with its user, the init script twice without changes), then the checks of the root composition:
 every `*-db-migrate` runner is `tooling`, waits for its instance healthy and takes its credentials
-from the variables file, and its second run applies nothing to its own control table. It runs on a
-network of its own (`multi-tour-ci-platform`), never on `platform`, and removes everything at the
-end. The CI runs the same script on every pull request to `develop` and `qa`.
+from the variables file, and its second run applies nothing to its own control table. It also checks
+the backup and restore of spec 003: a backup and a restore bring back a row and a document and drop a
+table created after the backup, a failed backup keeps the previous one, a restore in `qa` and `main`
+needs `--yes`, and `scripts/up.sh` backs up `qa` and `main` before migrating. It runs on a network of
+its own (`multi-tour-ci-platform`), never on `platform`, and removes everything at the end. The CI
+runs the same script on every pull request to `develop` and `qa`.
 
 ## What is missing
 
-Observability and backups, and the stories of the services that `platform.yml` already composes
+Observability (D-INF3-1 of the spec 003), and the stories of the services that `platform.yml` already composes
 (`code-corhuila/multi-tour-docs#199`).
 
 
