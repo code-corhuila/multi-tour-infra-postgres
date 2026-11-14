@@ -30,7 +30,8 @@ dir="$root/$date"
 # Both dumps go to a partial folder that replaces the dated one only when both succeed: a failed second backup
 # of the same day leaves the good one as it was. Created here, not by Docker, so this user can delete it later.
 partial="$dir.partial-$$"
-trap 'rm -rf "$partial" "$dir.old-$$"' EXIT
+trap 'rm -rf "$partial"' EXIT
+trap 'exit 1' INT TERM
 mkdir -p "$partial"
 BACKUP_DIR=$(cd "$partial" && pwd)
 command -v cygpath >/dev/null 2>&1 && BACKUP_DIR=$(cygpath -m "$BACKUP_DIR")
@@ -39,7 +40,13 @@ export BACKUP_DIR
 docker compose --env-file "$env_file" --profile tooling run --rm postgres-backup
 docker compose --env-file "$env_file" --profile tooling run --rm mongo-backup
 [ ! -e "$dir" ] || mv "$dir" "$dir.old-$$"
-mv "$partial" "$dir"
+# If the new folder cannot take the place of the old one, the old one goes back: never both lost
+if ! mv "$partial" "$dir"; then
+  [ ! -e "$dir.old-$$" ] || mv "$dir.old-$$" "$dir" || { echo "the previous backup is kept in $dir.old-$$" >&2; exit 1; }
+  echo "the backup could not replace $dir; the previous one is kept" >&2
+  exit 1
+fi
+rm -rf "$dir.old-$$"
 echo "backup written to $dir"
 
 # Only after a good backup: the dated folders older than 30 days go (GNU date, else BSD date)

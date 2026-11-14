@@ -84,7 +84,7 @@ services:
         dropdb --maintenance-db=postgres --if-exists --force "$$new"
         createdb --maintenance-db=postgres "$$new"
         pg_restore --single-transaction --dbname="$$new" /backup/postgres.dump
-        dropdb --maintenance-db=postgres --force "$$PGDATABASE"
+        dropdb --maintenance-db=postgres --if-exists --force "$$PGDATABASE"
         printf 'ALTER DATABASE :"new" RENAME TO :"old"\n' | psql -d postgres -v ON_ERROR_STOP=1 -v new="$$new" -v old="$$PGDATABASE"
     volumes:
       - ${BACKUP_DIR:-./backups}:/backup:ro

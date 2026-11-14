@@ -148,6 +148,15 @@ failed backup keeps the previous one of that day. `scripts/up.sh qa` and `script
 goes only through `scripts/restore.sh <environment> <date> --yes`: never run `postgres-restore` or
 `mongo-restore` by hand, they replace the data without asking.
 
+The restore of PostgreSQL loads the dump into a new database `<db>_restore` and only then drops the
+current one and renames the new one, so a failed load leaves the data as it was. Between the drop
+and the rename there is no database for a moment; if the rename fails, the data is in `<db>_restore`
+and `ALTER DATABASE <db>_restore RENAME TO <db>` (as the administrator, connected to `postgres`)
+brings it back; running `restore.sh` again also works. The restore is not atomic across the two
+engines: if MongoDB fails after PostgreSQL, run `restore.sh` again with the same date. In MongoDB,
+`mongorestore --drop` replaces only the collections of the archive: a collection created after the
+backup stays.
+
 ## How to test it
 
 ```sh
