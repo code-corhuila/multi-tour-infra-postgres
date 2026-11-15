@@ -39,6 +39,8 @@ done
 
 ### Fill the environment file
 
+`scripts/dev-keys.sh` and `scripts/dev-token.sh` exist only in the `develop` branch (norm 5.9.2): in `qa` and `main` the public key and the service tokens are secrets of the environment, given by the security service. Run this walkthrough from `develop`.
+
 Every value that the example leaves empty must be set before anything starts, because every script resolves the whole `platform.yml`. In `env/dev.env`:
 
 ```sh
@@ -52,7 +54,7 @@ openssl rand -base64 48                  # RECOVERY_CODE_KEY
 `MONGODB_URI` must carry the same password as `IDENTITY_AUDIT_APP_PASSWORD`, and `ALLOWED_ORIGIN` stays `http://localhost:4200`. `COMPOSE_PROFILES=mail-capture` starts Mailpit, which captures every e-mail of the security service and sends none.
 
 ```sh
-sh scripts/dev-keys.sh                     # RS256 pair in keys/ (ignored); paste the three lines it prints into env/dev.env
+sh scripts/dev-keys.sh                     # develop only: RS256 pair in keys/ (ignored); paste the three lines it prints into env/dev.env
 # fill the rest of env/dev.env as above
 sh scripts/dev-token.sh worker-event-relay # paste the line as SERVICE_TOKEN (the first call builds the security image)
 sh scripts/dev-token.sh workflow-onboard-tenant   # paste it as WORKFLOW_ONBOARD_TENANT_SERVICE_TOKEN
