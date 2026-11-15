@@ -134,9 +134,53 @@ scripts_are_valid_shell() {
   for s in scripts/dev-keys.sh scripts/dev-token.sh scripts/build-portal.sh scripts/bootstrap-admin.sh; do sh -n "$s" || return 1; done
 }
 
+# The staged start (spec 004): a stand-in docker logs every call and fails the up of $FAIL_ON
+mkdir -p "$TMP/stage/bin"
+cat > "$TMP/stage/bin/docker" <<'FAKE'
+#!/bin/sh
+echo "$*" >> "$STAGE_LOG"
+[ -n "$FAIL_ON" ] && case "$*" in *"up -d --wait"*" $FAIL_ON"|*"up -d --wait"*" $FAIL_ON "*) exit 1 ;; esac
+exit 0
+FAKE
+chmod +x "$TMP/stage/bin/docker"
+for r in multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db multi-tour-commercial-reservation-api multi-tour-commercial-reservation-db multi-tour-cash-reporting-api multi-tour-cash-reporting-db multi-tour-operations-cost-api multi-tour-operations-cost-db multi-tour-security multi-tour-workflow-onboard-tenant multi-tour-workflow-cancel-departure multi-tour-workflow-change-departure-vehicles multi-tour-workflow-register-payment multi-tour-workflow-execute-refund multi-tour-worker-event-relay multi-tour-worker-departure-deadlines multi-tour-worker-reprogramming-timers multi-tour-worker-notifications multi-tour-worker-cash-close multi-tour-worker-financial-timeouts multi-tour-worker-payment-expiry multi-tour-worker-retention multi-tour-api-gateway multi-tour-front multi-tour-identity-audit-portal multi-tour-commercial-reservation-portal multi-tour-operations-cost-portal multi-tour-cash-reporting-portal; do
+  mkdir -p "$TMP/stage/sib/$r"
+done
+stage_up() { # FAIL_ON names the service whose start fails ("" for none)
+  : > "$TMP/stage/log"
+  PATH="$TMP/stage/bin:$PATH" STAGE_LOG="$TMP/stage/log" FAIL_ON="$1" ENV_FILE="$TMP/ok.env" SIBLINGS_DIR="$TMP/stage/sib" sh scripts/up.sh dev
+}
+started() { sed -n 's/.*up -d --wait *//p' "$TMP/stage/log"; }
+
+up_starts_the_layers_in_order() {
+  stage_up "" >/dev/null 2>&1 || return 1
+  expected='postgres mongo
+security
+identity-audit-api
+commercial-reservation-api
+operations-cost-api
+cash-reporting-api
+workflow-onboard-tenant workflow-register-payment workflow-execute-refund workflow-cancel-departure workflow-change-departure-vehicles
+worker-notifications worker-payment-expiry worker-financial-timeouts worker-departure-deadlines worker-cash-close worker-reprogramming-timers worker-retention
+worker-event-relay
+multi-tour-identity-audit-portal commercial-reservation-portal multi-tour-operations-cost-portal cash-reporting-portal front
+api-gateway
+'
+  [ "$(started)" = "$(printf '%s' "$expected")" ] &&
+    tail -n 1 "$TMP/stage/log" | grep -q 'up -d --wait$' # a service no layer names starts after the gateway
+}
+
+up_stops_at_a_failed_layer() {
+  out=$(stage_up commercial-reservation-api 2>&1) && return 1
+  echo "$out" | grep -q 'commercial-reservation-api' &&
+    ! grep -q -e 'operations-cost-api' -e 'api-gateway' "$TMP/stage/log"
+}
+
 check "env_examples_give_the_relay_the_address_of_cash_reporting" env_examples_give_the_relay_the_address_of_cash_reporting
 check "env_examples_give_commercial_and_cash_their_cash_variables" env_examples_give_commercial_and_cash_their_cash_variables
 check "scripts_are_valid_shell" scripts_are_valid_shell
+check "up_starts_the_layers_in_order" up_starts_the_layers_in_order
+check "up_stops_at_a_failed_layer" up_stops_at_a_failed_layer
 check "platform_composes_the_reprogramming_timers_worker_with_its_own_token" platform_composes_the_reprogramming_timers_worker_with_its_own_token
 check "platform_composes_the_cash_service_and_its_runner" platform_composes_the_cash_service_and_its_runner
 check "platform_composes_the_operations_cost_service_and_its_runner" platform_composes_the_operations_cost_service_and_its_runner
