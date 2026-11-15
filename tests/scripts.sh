@@ -134,13 +134,12 @@ scripts_are_valid_shell() {
   for s in scripts/dev-keys.sh scripts/dev-token.sh scripts/build-portal.sh scripts/bootstrap-admin.sh; do sh -n "$s" || return 1; done
 }
 
-
 # The staged start (spec 004): a stand-in docker logs every call and fails the up of $FAIL_ON
 mkdir -p "$TMP/stage/bin"
 cat > "$TMP/stage/bin/docker" <<'FAKE'
 #!/bin/sh
 echo "$*" >> "$STAGE_LOG"
-case "$*" in *"up -d --wait"*" $FAIL_ON"|*"up -d --wait"*" $FAIL_ON "*) exit 1 ;; esac
+[ -n "$FAIL_ON" ] && case "$*" in *"up -d --wait"*" $FAIL_ON"|*"up -d --wait"*" $FAIL_ON "*) exit 1 ;; esac
 exit 0
 FAKE
 chmod +x "$TMP/stage/bin/docker"
@@ -167,13 +166,14 @@ worker-event-relay
 multi-tour-identity-audit-portal commercial-reservation-portal multi-tour-operations-cost-portal cash-reporting-portal front
 api-gateway
 '
-  [ "$(started)" = "$(printf '%s' "$expected")" ]
+  [ "$(started)" = "$(printf '%s' "$expected")" ] &&
+    tail -n 1 "$TMP/stage/log" | grep -q 'up -d --wait$' # a service no layer names starts after the gateway
 }
 
 up_stops_at_a_failed_layer() {
   out=$(stage_up commercial-reservation-api 2>&1) && return 1
   echo "$out" | grep -q 'commercial-reservation-api' &&
-    ! grep -q 'operations-cost-api\|api-gateway' "$TMP/stage/log"
+    ! grep -q -e 'operations-cost-api' -e 'api-gateway' "$TMP/stage/log"
 }
 
 check "env_examples_give_the_relay_the_address_of_cash_reporting" env_examples_give_the_relay_the_address_of_cash_reporting

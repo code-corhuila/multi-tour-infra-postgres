@@ -83,7 +83,8 @@ dc --profile tooling run --rm commercial-reservation-db-migrate
 dc --profile tooling run --rm cash-reporting-db-migrate
 dc --profile tooling run --rm operations-cost-db-migrate
 
-# Staged start (spec 004): each layer is healthy before the next one starts, and the gateway, the only door, opens last
+# Staged start (spec 004): each layer is up before the next one starts (healthy where the service has a health check),
+# and the gateway, the only door, opens last
 layer() { # number and name of the layer, then its services
   n=$1; name=$2; shift 2
   echo "== layer $n: $name ($*)"
@@ -99,5 +100,5 @@ layer 6 "workers" worker-notifications worker-payment-expiry worker-financial-ti
 layer 6 "event relay" worker-event-relay
 layer 7 "portals and front" multi-tour-identity-audit-portal commercial-reservation-portal multi-tour-operations-cost-portal cash-reporting-portal front
 layer 8 "gateway" api-gateway
-# A service that no layer names (one a sibling adds later, or an opt-in one such as Mailpit) still starts, after the gateway
+# A service that no layer names (one a sibling adds later, or Mailpit when its profile is on) still starts, after the gateway
 dc up -d --wait
