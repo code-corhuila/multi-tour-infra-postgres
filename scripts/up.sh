@@ -3,7 +3,9 @@
 # Usage: scripts/up.sh dev|qa|main [--check] [--demo]
 #   --check  only verifies the sibling repositories and that the composition resolves; starts nothing
 #   --demo   also publishes the front on port 4200 (demo-front-port.yml), for a browser on this machine
-# Order: the instances (PostgreSQL, MongoDB), then the migration runners, then the services.
+# Order: the instances (PostgreSQL, MongoDB), then the migration runners one by one, then the services in layers,
+# each healthy before the next: security, the domain APIs one by one, the sagas, the workers, the portals and the front,
+# and the gateway last (spec 004).
 # The repositories it includes must sit beside this one. ENV_FILE and SIBLINGS_DIR replace the variables file
 # and the folder that holds the siblings (the checks use them; a person rarely needs to).
 set -eu
@@ -80,4 +82,22 @@ dc --profile tooling run --rm identity-audit-db-migrate
 dc --profile tooling run --rm commercial-reservation-db-migrate
 dc --profile tooling run --rm cash-reporting-db-migrate
 dc --profile tooling run --rm operations-cost-db-migrate
+
+# Staged start (spec 004): each layer is healthy before the next one starts, and the gateway, the only door, opens last
+layer() { # number and name of the layer, then its services
+  n=$1; name=$2; shift 2
+  echo "== layer $n: $name ($*)"
+  dc up -d --wait "$@" || { echo "ERROR: layer $n ($name) did not become healthy: $*; the later layers were not started" >&2; exit 1; }
+}
+layer 3 "security" security
+layer 4 "identity-audit" identity-audit-api
+layer 4 "commercial-reservation" commercial-reservation-api
+layer 4 "operations-cost" operations-cost-api
+layer 4 "cash-reporting" cash-reporting-api
+layer 5 "sagas" workflow-onboard-tenant workflow-register-payment workflow-execute-refund workflow-cancel-departure workflow-change-departure-vehicles
+layer 6 "workers" worker-notifications worker-payment-expiry worker-financial-timeouts worker-departure-deadlines worker-cash-close worker-reprogramming-timers worker-retention
+layer 6 "event relay" worker-event-relay
+layer 7 "portals and front" multi-tour-identity-audit-portal commercial-reservation-portal multi-tour-operations-cost-portal cash-reporting-portal front
+layer 8 "gateway" api-gateway
+# A service that no layer names (one a sibling adds later, or an opt-in one such as Mailpit) still starts, after the gateway
 dc up -d --wait
