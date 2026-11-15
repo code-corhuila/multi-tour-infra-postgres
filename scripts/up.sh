@@ -68,6 +68,8 @@ fi
 docker network inspect platform >/dev/null 2>&1 || docker network create platform >/dev/null
 
 dc up -d --wait postgres mongo
+# J.5.4: in qa and main the data is backed up before a runner migrates it; a failed backup migrates nothing
+case "$env_name" in qa|main) ENV_FILE="$env_file" sh scripts/backup.sh "$env_name" || { echo "ERROR: the backup of $env_name failed; nothing was migrated" >&2; exit 1; } ;; esac
 dc --profile tooling run --rm security-db-migrate
 dc --profile tooling run --rm workflow-onboard-tenant-db-migrate
 dc --profile tooling run --rm workflow-cancel-departure-db-migrate
