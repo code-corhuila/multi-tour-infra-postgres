@@ -5,3 +5,5 @@ env/*.env
 !env/*.env.example
 keys/
 *.pem
+# Backups written by scripts/backup.sh: data of an environment, never versioned
+backups/
