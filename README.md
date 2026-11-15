@@ -58,10 +58,10 @@ sh scripts/dev-token.sh worker-event-relay # paste the line as SERVICE_TOKEN (th
 sh scripts/dev-token.sh workflow-onboard-tenant   # paste it as WORKFLOW_ONBOARD_TENANT_SERVICE_TOKEN
 sh scripts/dev-token.sh workflow-cancel-departure   # paste it as WORKFLOW_CANCEL_DEPARTURE_SERVICE_TOKEN
 sh scripts/dev-token.sh workflow-change-departure-vehicles   # paste it as WORKFLOW_CHANGE_DEPARTURE_VEHICLES_SERVICE_TOKEN
-sh scripts/dev-token.sh worker-notifications 90d   # paste it as WORKER_NOTIFICATIONS_SERVICE_TOKEN (customer e-mails, HU-COM-015)
+sh scripts/dev-token.sh worker-notifications 2160h   # paste it as WORKER_NOTIFICATIONS_SERVICE_TOKEN (customer e-mails, HU-COM-015)
 sh scripts/dev-token.sh worker-departure-deadlines   # paste it as WORKER_DEPARTURE_DEADLINES_SERVICE_TOKEN (job 3, which calls operations-cost)
-sh scripts/dev-token.sh worker-reprogramming-timers 90d   # paste it as WORKER_REPROGRAMMING_TIMERS_SERVICE_TOKEN (job 5, which calls commercial-reservation)
-sh scripts/dev-token.sh commercial-reservation-api 90d   # paste it as CASH_REPORTING_SERVICE_TOKEN (the cash income of a payment; without it the cash payment answers 503)
+sh scripts/dev-token.sh worker-reprogramming-timers 2160h   # paste it as WORKER_REPROGRAMMING_TIMERS_SERVICE_TOKEN (job 5, which calls commercial-reservation)
+sh scripts/dev-token.sh commercial-reservation-api 2160h   # paste it as CASH_REPORTING_SERVICE_TOKEN (the cash income of a payment; without it the cash payment answers 503)
 sh scripts/up.sh dev --demo                # now with the five tokens; it refuses to start while a CHANGE_ME is left
 ```
 
