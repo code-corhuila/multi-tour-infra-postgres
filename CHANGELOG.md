@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-11-15
+
+Patch release: the pull request below, merged into `qa` and re-applied to `release/3.0.1` with `git cherry-pick -x`.
+
+### Changed
+
+#### HU-INF-001 - Run the single PostgreSQL instance and the root composition
+
+- Start the platform in layers, each healthy before the next, with the gateway last ([PR 56](https://github.com/code-corhuila/multi-tour-infra-postgres/pull/56), from [PR 55](https://github.com/code-corhuila/multi-tour-infra-postgres/pull/55))
+
 ## [3.0.0] - 2026-11-14
 
 Cut 3 release. Every entry below is a pull request merged into `qa` and re-applied to `release/3.0.0` with `git cherry-pick -x`; the heading of each group is the user story named in the pull request, and the entry is the title of the pull request without its type. The frozen head of `qa` is `bf97f6daac6f6a0e97a0e2fe79c613a54d67d883`.
