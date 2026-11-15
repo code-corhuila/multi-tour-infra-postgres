@@ -70,11 +70,66 @@ bootstrap_passes_the_password_only_through_stdin() {
   ! grep -q 's3cret-Pass' "$TMP/args.txt" && ! echo "$out" | grep -q 's3cret-Pass'
 }
 
+platform_composes_the_cash_service_and_its_runner() {
+  grep -q '../multi-tour-cash-reporting-api/deploy/compose.yml' platform.yml &&
+    grep -q 'glue/cash-reporting-api.yml' platform.yml &&
+    grep -q '../multi-tour-cash-reporting-db/deploy/compose.yml' platform.yml &&
+    grep -q 'multi-tour-cash-reporting-api' glue/cash-reporting-api.yml &&
+    grep -q 'multi-tour-cash-reporting-api multi-tour-cash-reporting-db' scripts/up.sh &&
+    grep -q 'run --rm cash-reporting-db-migrate' scripts/up.sh
+}
+
+platform_composes_the_operations_cost_service_and_its_runner() {
+  grep -q '../multi-tour-operations-cost-api/deploy/compose.yml' platform.yml &&
+    grep -q 'glue/operations-cost-api.yml' platform.yml &&
+    grep -q '../multi-tour-operations-cost-db/deploy/compose.yml' platform.yml &&
+    grep -q 'multi-tour-operations-cost-api' glue/operations-cost-api.yml &&
+    grep -q 'jdbc:postgresql://postgres:5432/${PG_DATABASE}' glue/operations-cost-api.yml &&
+    grep -q 'COMMERCIAL_RESERVATION_BASE_URL: http://multi-tour-commercial-reservation-api:8083' glue/operations-cost-api.yml &&
+    grep -q 'multi-tour-operations-cost-api multi-tour-operations-cost-db' scripts/up.sh &&
+    grep -q 'run --rm operations-cost-db-migrate' scripts/up.sh
+}
+
+env_examples_give_the_relay_the_addresses_of_operations_cost_and_commercial_reservation() {
+  for f in env/dev.env.example env/qa.env.example env/main.env.example; do
+    grep -q '^OPERATIONS_COST_BASE_URL=http://multi-tour-operations-cost-api:8084$' "$f" &&
+      grep -q '^COMMERCIAL_RESERVATION_BASE_URL=http://multi-tour-commercial-reservation-api:8083$' "$f" || return 1
+  done
+}
+
+env_examples_give_the_relay_the_address_of_cash_reporting() {
+  for f in env/dev.env.example env/qa.env.example env/main.env.example; do
+    grep -q "^CASH_REPORTING_BASE_URL=http://multi-tour-cash-reporting-api:8085$" "$f" || return 1
+  done
+}
+
+env_examples_give_commercial_and_cash_their_cash_variables() {
+  for f in env/dev.env.example env/qa.env.example env/main.env.example; do
+    grep -q '^CASH_REPORTING_SERVICE_TOKEN=CHANGE_ME$' "$f" &&
+      grep -q '^CASH_FIXTURES_TENANT_ID=$' "$f" || return 1
+  done
+}
+
+platform_composes_the_reprogramming_timers_worker_with_its_own_token() {
+  grep -q '../multi-tour-worker-reprogramming-timers/deploy/compose.yml' platform.yml &&
+    grep -q 'multi-tour-worker-reprogramming-timers' scripts/up.sh &&
+    grep -q 'multi-tour-worker-reprogramming-timers' README.md &&
+    for f in env/dev.env.example env/qa.env.example env/main.env.example; do
+      grep -q '^WORKER_REPROGRAMMING_TIMERS_SERVICE_TOKEN=CHANGE_ME$' "$f" || return 1
+    done
+}
+
 scripts_are_valid_shell() {
   for s in scripts/build-portal.sh scripts/bootstrap-admin.sh; do sh -n "$s" || return 1; done
 }
 
+check "env_examples_give_the_relay_the_address_of_cash_reporting" env_examples_give_the_relay_the_address_of_cash_reporting
+check "env_examples_give_commercial_and_cash_their_cash_variables" env_examples_give_commercial_and_cash_their_cash_variables
 check "scripts_are_valid_shell" scripts_are_valid_shell
+check "platform_composes_the_reprogramming_timers_worker_with_its_own_token" platform_composes_the_reprogramming_timers_worker_with_its_own_token
+check "platform_composes_the_cash_service_and_its_runner" platform_composes_the_cash_service_and_its_runner
+check "platform_composes_the_operations_cost_service_and_its_runner" platform_composes_the_operations_cost_service_and_its_runner
+check "env_examples_give_the_relay_the_addresses_of_operations_cost_and_commercial_reservation" env_examples_give_the_relay_the_addresses_of_operations_cost_and_commercial_reservation
 check "dev_scripts_exist_only_in_develop" dev_scripts_exist_only_in_develop
 check "portal_script_refuses_a_missing_folder" portal_script_refuses_a_missing_folder
 check "portal_script_copies_the_module_and_its_styles" portal_script_copies_the_module_and_its_styles

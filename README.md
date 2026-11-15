@@ -14,30 +14,57 @@ gateway does.
 
 ## How to start it
 
-Needs Docker with Compose v2. Pick the environment: `dev`, `qa` or `main`.
+Needs Docker with Compose 2.24.4 or later (`platform.yml` uses `include` with `env_file`, and the gateway glue uses `!override`), `git`, `openssl`, `curl` and a POSIX `sh` (on Windows, Git Bash). `scripts/build-portal.sh` also needs Node 22 and npm. Every image is built from source on the first start (Maven, Go and npm download their dependencies), so the first start needs internet and takes several minutes. Pick the environment: `dev`, `qa` or `main`.
 
 ```sh
-cp env/dev.env.example env/dev.env   # never versioned; fill every secret
+cp env/dev.env.example env/dev.env   # never versioned; fill every secret (see "Fill the environment file" below)
 sh scripts/up.sh dev                 # the whole platform (platform.yml): creates the network platform and waits until healthy
 sh scripts/up.sh dev --check         # only checks that the sibling repositories are there and the composition resolves
 sh scripts/down.sh dev               # stops it and keeps the data
 ```
 
-The repositories that `platform.yml` includes (`multi-tour-infra-mongo`, `multi-tour-identity-audit-api` and `-db`, `multi-tour-security`, `multi-tour-workflow-onboard-tenant`, `multi-tour-worker-event-relay`, `multi-tour-api-gateway`, `multi-tour-front`) must be cloned as siblings of this one, in the same folder; `up.sh` names the one that is missing and the command to clone it, and `down.sh` needs them too. `MONGODB_URI` repeats the password of `IDENTITY_AUDIT_APP_PASSWORD`: keep both equal, and write a password with reserved characters percent-encoded in the address.
+The 21 repositories that `platform.yml` includes must be cloned as siblings of this one, in the same folder (the list is in `scripts/up.sh`):
 
-`up.sh` starts in order: the instances (PostgreSQL, MongoDB), the migration runners (security, the saga, identity-audit), then the services. Only the gateway publishes a port (8080). The browser must also reach the front: `up.sh dev --demo` adds `demo-front-port.yml`, which publishes it on 4200 and nothing else. Small files in `glue/` give two services the container name the gateway routes to and set the port of the saga (8090), and define the front, which has no compose file of its own. Run one environment at a time: the network `platform` and the host port 8080 are shared.
+```sh
+for r in multi-tour-infra-mongo multi-tour-identity-audit-api multi-tour-identity-audit-db multi-tour-commercial-reservation-api multi-tour-commercial-reservation-db multi-tour-cash-reporting-api multi-tour-cash-reporting-db multi-tour-operations-cost-api multi-tour-operations-cost-db multi-tour-security multi-tour-workflow-onboard-tenant multi-tour-workflow-cancel-departure multi-tour-workflow-change-departure-vehicles multi-tour-workflow-register-payment multi-tour-workflow-execute-refund multi-tour-worker-event-relay multi-tour-worker-departure-deadlines multi-tour-worker-reprogramming-timers multi-tour-worker-notifications multi-tour-worker-cash-close multi-tour-worker-financial-timeouts multi-tour-worker-payment-expiry multi-tour-worker-retention multi-tour-api-gateway multi-tour-front multi-tour-identity-audit-portal multi-tour-commercial-reservation-portal multi-tour-operations-cost-portal multi-tour-cash-reporting-portal; do
+  git clone -b develop https://github.com/code-corhuila/$r.git ../$r
+done
+```
+
+`up.sh` names the one that is missing and the command to clone it, and `down.sh` needs them too. `MONGODB_URI` repeats the password of `IDENTITY_AUDIT_APP_PASSWORD`: keep both equal, and write a password with reserved characters percent-encoded in the address.
+
+`up.sh` starts in order: the instances (PostgreSQL, MongoDB), the migration runners (security, the saga, identity-audit, cash-reporting), then the services. Only the gateway publishes a port (8080). The browser must also reach the front: `up.sh dev --demo` adds `demo-front-port.yml`, which publishes it on 4200 and nothing else. Small files in `glue/` give two services the container name the gateway routes to and set the port of the saga (8090), and define the front, which has no compose file of its own. Run one environment at a time: the network `platform` and the host port 8080 are shared.
 
 ## Demo walkthrough (development only)
 
+### Fill the environment file
+
 `scripts/dev-keys.sh` and `scripts/dev-token.sh` exist only in the `develop` branch (norm 5.9.2): in `qa` and `main` the public key and the service tokens are secrets of the environment, given by the security service. Run this walkthrough from `develop`.
+
+Every value that the example leaves empty must be set before anything starts, because every script resolves the whole `platform.yml`. In `env/dev.env`:
+
+```sh
+openssl rand -hex 16                     # one per password: PG_ADMIN_PASSWORD, every *_APP_PASSWORD, MONGO_INITDB_ROOT_PASSWORD, IDENTITY_AUDIT_APP_PASSWORD
+echo "k1=$(openssl rand -base64 32)"      # FIELD_ENCRYPTION_KEYS
+openssl rand -base64 48                  # RECOVERY_CODE_KEY
+```
+
+`CASH_FIXTURES_TENANT_ID` stays empty at first: after the demo tenant is onboarded (step 2 below), put its identifier there and recreate `cash-reporting-api` (`docker compose -f platform.yml --env-file env/dev.env up -d --force-recreate cash-reporting-api`) so the dashboard fixtures load for that tenant. In `qa` and `main` the token is a secret issued by the security service (one per service and environment, 90 days).
+
+`MONGODB_URI` must carry the same password as `IDENTITY_AUDIT_APP_PASSWORD`, and `ALLOWED_ORIGIN` stays `http://localhost:4200`. `COMPOSE_PROFILES=mail-capture` starts Mailpit, which captures every e-mail of the security service and sends none.
 
 ```sh
 sh scripts/dev-keys.sh                     # develop only: RS256 pair in keys/ (ignored); paste the three lines it prints into env/dev.env
-# fill env/dev.env: every password, ALLOWED_ORIGIN=http://localhost:4200, MONGODB_URI with the same password
-sh scripts/up.sh dev --demo                # refuses to start while a CHANGE_ME is left
-sh scripts/dev-token.sh worker-event-relay # paste the line as SERVICE_TOKEN
+# fill the rest of env/dev.env as above
+sh scripts/dev-token.sh worker-event-relay # paste the line as SERVICE_TOKEN (the first call builds the security image)
 sh scripts/dev-token.sh workflow-onboard-tenant   # paste it as WORKFLOW_ONBOARD_TENANT_SERVICE_TOKEN
-sh scripts/up.sh dev --demo                # again, now with both tokens
+sh scripts/dev-token.sh workflow-cancel-departure   # paste it as WORKFLOW_CANCEL_DEPARTURE_SERVICE_TOKEN
+sh scripts/dev-token.sh workflow-change-departure-vehicles   # paste it as WORKFLOW_CHANGE_DEPARTURE_VEHICLES_SERVICE_TOKEN
+sh scripts/dev-token.sh worker-notifications 2160h   # paste it as WORKER_NOTIFICATIONS_SERVICE_TOKEN (customer e-mails, HU-COM-015)
+sh scripts/dev-token.sh worker-departure-deadlines   # paste it as WORKER_DEPARTURE_DEADLINES_SERVICE_TOKEN (job 3, which calls operations-cost)
+sh scripts/dev-token.sh worker-reprogramming-timers 2160h   # paste it as WORKER_REPROGRAMMING_TIMERS_SERVICE_TOKEN (job 5, which calls commercial-reservation)
+sh scripts/dev-token.sh commercial-reservation-api 2160h   # paste it as CASH_REPORTING_SERVICE_TOKEN (the cash income of a payment; without it the cash payment answers 503)
+sh scripts/up.sh dev --demo                # now with the five tokens; it refuses to start while a CHANGE_ME is left
 ```
 
 The first Platform Administrator is made once with the command of the security service (`bootstrap-platform-admin`, see its README), through a script:
@@ -103,6 +130,35 @@ open `psql` inside the container:
 docker compose --env-file env/dev.env exec postgres psql -U multitour_admin -d multitour
 ```
 
+## Backup and restore
+
+```sh
+sh scripts/backup.sh dev                     # backups/dev/<YYYY-MM-DD>/postgres.dump and mongo.archive
+sh scripts/restore.sh dev 2026-11-14         # qa and main also need --yes
+```
+
+`backup.sh` runs the runners `postgres-backup` (`pg_dump` of the whole database, every schema) and
+`mongo-backup` (of `multi-tour-infra-mongo`, the whole instance with the oplog), both of profile
+`tooling`, and then deletes the dated folders of that environment older than 30 days. `restore.sh`
+brings both instances back to one dated folder; stop the services first, not the instances. The
+daily schedule is the host's (a cron), never a worker; encryption and a copy away from the host
+(S3) belong to the environment that operates the platform. `backups/` is ignored by git.
+
+A backup is written to a partial folder and replaces the dated one only when both dumps succeed, so a
+failed backup keeps the previous one of that day. `scripts/up.sh qa` and `scripts/up.sh main` run
+`backup.sh` before the migration runners and stop if it fails (J.5.4). In `qa` and `main` a restore
+goes only through `scripts/restore.sh <environment> <date> --yes`: never run `postgres-restore` or
+`mongo-restore` by hand, they replace the data without asking.
+
+The restore of PostgreSQL loads the dump into a new database `<db>_restore` and only then drops the
+current one and renames the new one, so a failed load leaves the data as it was. Between the drop
+and the rename there is no database for a moment; if the rename fails, the data is in `<db>_restore`
+and `ALTER DATABASE <db>_restore RENAME TO <db>` (as the administrator, connected to `postgres`)
+brings it back; running `restore.sh` again also works. The restore is not atomic across the two
+engines: if MongoDB fails after PostgreSQL, run `restore.sh` again with the same date. In MongoDB,
+`mongorestore --drop` replaces only the collections of the archive: a collection created after the
+backup stays.
+
 ## How to test it
 
 ```sh
@@ -111,13 +167,19 @@ sh tests/verify.sh
 
 Needs Docker. It starts a throw-away project, runs the five checks of the spec (one container
 per environment, the init script only on an empty volume, no real `.env` versioned, every schema
-with its user, the init script twice without changes) and removes it. The CI runs the same
-script on every pull request to `develop` and `qa`.
+with its user, the init script twice without changes), then the checks of the root composition:
+every `*-db-migrate` runner is `tooling`, waits for its instance healthy and takes its credentials
+from the variables file, and its second run applies nothing to its own control table. It also checks
+the backup and restore of spec 003: a backup and a restore bring back a row and a document and drop a
+table created after the backup, a failed backup keeps the previous one, a restore in `qa` and `main`
+needs `--yes`, and `scripts/up.sh` backs up `qa` and `main` before migrating. It runs on a network of
+its own (`multi-tour-ci-platform`), never on `platform`, and removes everything at the end. The CI
+runs the same script on every pull request to `develop` and `qa`.
 
 ## What is missing
 
-Observability, backups, and the services of the other domains and sagas, which come with their
-stories (`code-corhuila/multi-tour-docs#199`).
+Observability (D-INF3-1 of the spec 003), and the stories of the services that `platform.yml` already composes
+(`code-corhuila/multi-tour-docs#199`).
 
 
 ## Branching
